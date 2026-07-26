@@ -3,7 +3,7 @@
 # diffed against expected register/flag state - see README.md for the
 # validation strategy this project is following.
 add_executable(gba_tests
-    test_placeholder.cpp
+    test_cpu_arm.cpp
 )
 
 target_link_libraries(gba_tests PRIVATE gba_core)
