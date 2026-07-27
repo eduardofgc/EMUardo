@@ -35,19 +35,20 @@ enum class ShiftType : u32 {
     ROR = 3,
 };
 
-// ARM7TDMI interpreter core. Handles the 32-bit ARM instruction set;
-// Thumb (16-bit) decode is a separate, later milestone - Step() already
-// branches on the T flag so that work slots in without touching this file.
+// ARM7TDMI interpreter core. Handles both the 32-bit ARM instruction set
+// and the 16-bit Thumb instruction set - Step() branches on the T flag to
+// pick which decoder runs.
 //
 // A note on the PC/pipeline simplification used throughout this file: real
 // hardware pipelines fetch/decode/execute, so reading r15 mid-instruction
-// gives "address of this instruction + 8" in ARM state. We don't model the
-// pipeline - Step() just does fetch-then-immediately-increment, so by the
-// time an instruction executes, registers_[15] already holds
-// "address of this instruction + 4". Anywhere GBATEK says an instruction
-// reads r15 as PC+8 (or +12 for register-specified shift amounts), we add
-// the extra +4 (or +8) explicitly at the point of use - look for comments
-// referencing this paragraph.
+// gives "address of this instruction + 8" in ARM state (+4 in Thumb state).
+// We don't model the pipeline - Step() just does fetch-then-immediately-
+// increment, so by the time an instruction executes, registers_[15]
+// already holds "address of this instruction + 4" (ARM) or "+ 2" (Thumb).
+// Anywhere GBATEK says an instruction reads r15 with the pipeline offset
+// (PC+8/PC+12 in ARM, PC+4 in Thumb), we add the remaining difference
+// explicitly at the point of use - look for comments referencing this
+// paragraph.
 class Cpu {
 public:
     explicit Cpu(Bus& bus);
@@ -101,6 +102,7 @@ private:
     u16 FetchThumb();
 
     void ExecuteArm(u32 instruction);
+    void ExecuteThumb(u16 instruction);
 
     // --- Barrel shifter -------------------------------------------------
     // General shift engine shared by data-processing operand2 and the
@@ -137,6 +139,31 @@ private:
     // Generic exception entry: banks LR/SPSR, switches mode, masks
     // interrupts, forces ARM state, and jumps to the vector address.
     void EnterException(CpuMode mode, u32 vectorAddress);
+
+    // --- Thumb instruction set --------------------------------------------
+    // Named after the 19 instruction "formats" in the ARM7TDMI Technical
+    // Reference Manual's Thumb chapter - each format is a distinct 16-bit
+    // encoding shape, not a single instruction. Several formats cover
+    // multiple related mnemonics (e.g. Format 4 covers AND/EOR/LSL/.../MVN).
+    void ThumbMoveShiftedRegister(u16 instruction);   // Format 1: LSL/LSR/ASR Rd, Rs, #imm5
+    void ThumbAddSubtract(u16 instruction);           // Format 2: ADD/SUB Rd, Rs, Rn/#imm3
+    void ThumbImmediateOp(u16 instruction);           // Format 3: MOV/CMP/ADD/SUB Rd, #imm8
+    void ThumbAluOp(u16 instruction);                 // Format 4: two-register ALU ops
+    void ThumbHiRegOpsBranchExchange(u16 instruction); // Format 5: ADD/CMP/MOV on r8-r15, BX
+    void ThumbPcRelativeLoad(u16 instruction);        // Format 6: LDR Rd, [PC, #imm8*4]
+    void ThumbLoadStoreRegOffset(u16 instruction);    // Format 7: LDR/STR{B} Rd, [Rb, Ro]
+    void ThumbLoadStoreSignExtended(u16 instruction); // Format 8: LDRH/STRH/LDSB/LDSH Rd, [Rb, Ro]
+    void ThumbLoadStoreImmOffset(u16 instruction);    // Format 9: LDR/STR{B} Rd, [Rb, #imm5]
+    void ThumbLoadStoreHalfword(u16 instruction);     // Format 10: LDRH/STRH Rd, [Rb, #imm5*2]
+    void ThumbSpRelativeLoadStore(u16 instruction);   // Format 11: LDR/STR Rd, [SP, #imm8*4]
+    void ThumbLoadAddress(u16 instruction);           // Format 12: ADD Rd, PC/SP, #imm8*4
+    void ThumbAddOffsetToSp(u16 instruction);         // Format 13: ADD SP, #imm7*4 (signed)
+    void ThumbPushPopRegisters(u16 instruction);      // Format 14: PUSH/POP {rlist}{LR/PC}
+    void ThumbMultipleLoadStore(u16 instruction);     // Format 15: STMIA/LDMIA Rb!, {rlist}
+    void ThumbConditionalBranch(u16 instruction);     // Format 16: Bcc label
+    void ThumbSoftwareInterrupt(u16 instruction);     // Format 17: SWI #imm8
+    void ThumbUnconditionalBranch(u16 instruction);   // Format 18: B label
+    void ThumbLongBranchLink(u16 instruction);        // Format 19: BL label (two-instruction pair)
 };
 
 } // namespace gba

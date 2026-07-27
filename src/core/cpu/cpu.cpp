@@ -177,11 +177,9 @@ bool Cpu::CheckCondition(u32 instruction) const {
 
 int Cpu::Step() {
     if (GetFlag(Flag::T)) {
-        // Thumb decode isn't implemented yet - that's the next milestone
-        // after this one. Fetch-and-skip keeps the loop well-defined
-        // rather than silently reading garbage forever.
-        FetchThumb();
-        registers_[15] += 2;
+        const u16 instruction = FetchThumb();
+        registers_[15] += 2; // advance PC before execute - mirrors the ARM path below
+        ExecuteThumb(instruction);
         return 1;
     }
 
@@ -279,6 +277,8 @@ u32 Cpu::GetRegisterOperand2(u32 instruction, bool& carryOut) const {
     const u32 rm = instruction & 0xFu;
     const bool shiftFromRegister = ((instruction >> 4) & 1u) != 0;
 
+    // PC-as-operand quirk (see cpu.h header comment): registers_[15]
+    // already holds current+4, so +4 more gives PC+8, +8 more gives PC+12.
     u32 value = (rm == 15)
         ? registers_[15] + (shiftFromRegister ? 8u : 4u)
         : GetRegister(static_cast<int>(rm));
@@ -299,8 +299,15 @@ u32 Cpu::GetRegisterOperand2(u32 instruction, bool& carryOut) const {
     return value;
 }
 
+// ---------------------------------------------------------------------
+// Top-level ARM decode. Order matters here: several instruction classes
+// share overlapping bit patterns, so more specific patterns are checked
+// before falling through to the more general ones. See GBATEK's
+// "ARM Binary Opcode Format" for the reference bit layouts this mirrors.
+// ---------------------------------------------------------------------
 
 void Cpu::ExecuteArm(u32 instruction) {
+    // Branch and Exchange: cond 0001 0010 1111 1111 1111 0001 Rn
     if ((instruction & 0x0FFF'FFF0u) == 0x012F'FF10u) {
         ArmBranchExchange(instruction);
         return;
@@ -353,7 +360,9 @@ void Cpu::ExecuteArm(u32 instruction) {
 
     switch (bits27_26) {
         case 0b00:
-
+            // Everything more specific has already been peeled off above;
+            // what's left is plain Data Processing (immediate or register
+            // operand2, selected internally via bit25).
             ArmDataProcessing(instruction);
             return;
 
@@ -361,7 +370,7 @@ void Cpu::ExecuteArm(u32 instruction) {
             const bool immediateBit = ((instruction >> 25) & 1u) != 0;
             const bool bit4 = ((instruction >> 4) & 1u) != 0;
             if (immediateBit && bit4) {
-                ArmUndefined(instruction);
+                ArmUndefined(instruction); // reserved encoding
             } else {
                 ArmSingleDataTransfer(instruction);
             }
@@ -383,11 +392,112 @@ void Cpu::ExecuteArm(u32 instruction) {
             if (isSwi) {
                 ArmSoftwareInterrupt(instruction);
             } else {
+                // Coprocessor instructions (CDP/LDC/STC/MRC/MCR) - the GBA
+                // has no coprocessor, so real games never emit these.
                 ArmUndefined(instruction);
             }
             return;
         }
     }
+}
+
+// ---------------------------------------------------------------------
+// Top-level Thumb decode. Thumb has 19 fixed-shape instruction "formats"
+// (ARM7TDMI TRM's naming, not opcodes) rather than ARM's more orthogonal
+// bit-field layout, so this dispatches mostly on the top few bits, with a
+// couple of formats sharing a prefix and needing one more bit to
+// disambiguate (noted inline). See GBATEK "THUMB Instruction Summary".
+// ---------------------------------------------------------------------
+
+void Cpu::ExecuteThumb(u16 instruction) {
+    const u16 bits15_13 = static_cast<u16>((instruction >> 13) & 0x7u);
+    const u16 bits15_12 = static_cast<u16>((instruction >> 12) & 0xFu);
+    const u16 bits15_11 = static_cast<u16>((instruction >> 11) & 0x1Fu);
+    const u16 bits15_10 = static_cast<u16>((instruction >> 10) & 0x3Fu);
+    const u16 bits15_8  = static_cast<u16>((instruction >> 8) & 0xFFu);
+
+    // Format 2 (Add/Subtract) shares Format 1's 000 prefix; check it first.
+    if (bits15_11 == 0b00011u) {
+        ThumbAddSubtract(instruction);
+        return;
+    }
+    if (bits15_13 == 0b000u) {
+        ThumbMoveShiftedRegister(instruction);
+        return;
+    }
+    if (bits15_13 == 0b001u) {
+        ThumbImmediateOp(instruction);
+        return;
+    }
+    if (bits15_10 == 0b010000u) {
+        ThumbAluOp(instruction);
+        return;
+    }
+    if (bits15_10 == 0b010001u) {
+        ThumbHiRegOpsBranchExchange(instruction);
+        return;
+    }
+    if (bits15_11 == 0b01001u) {
+        ThumbPcRelativeLoad(instruction);
+        return;
+    }
+    if (bits15_12 == 0b0101u) {
+        // bit9 splits this nibble into reg-offset load/store (0) vs
+        // sign-extended byte/halfword load/store (1) - GBATEK Format 7/8.
+        if (((instruction >> 9) & 1u) == 0) {
+            ThumbLoadStoreRegOffset(instruction);
+        } else {
+            ThumbLoadStoreSignExtended(instruction);
+        }
+        return;
+    }
+    if (bits15_13 == 0b011u) {
+        ThumbLoadStoreImmOffset(instruction);
+        return;
+    }
+    if (bits15_12 == 0b1000u) {
+        ThumbLoadStoreHalfword(instruction);
+        return;
+    }
+    if (bits15_12 == 0b1001u) {
+        ThumbSpRelativeLoadStore(instruction);
+        return;
+    }
+    if (bits15_12 == 0b1010u) {
+        ThumbLoadAddress(instruction);
+        return;
+    }
+    if (bits15_8 == 0b10110000u) {
+        ThumbAddOffsetToSp(instruction);
+        return;
+    }
+    if (bits15_12 == 0b1011u && ((instruction >> 9) & 0x3u) == 0b10u) {
+        ThumbPushPopRegisters(instruction);
+        return;
+    }
+    if (bits15_12 == 0b1100u) {
+        ThumbMultipleLoadStore(instruction);
+        return;
+    }
+    if (bits15_8 == 0b11011111u) {
+        ThumbSoftwareInterrupt(instruction);
+        return;
+    }
+    if (bits15_12 == 0b1101u) {
+        ThumbConditionalBranch(instruction);
+        return;
+    }
+    if (bits15_11 == 0b11100u) {
+        ThumbUnconditionalBranch(instruction);
+        return;
+    }
+    if (bits15_12 == 0b1111u) {
+        ThumbLongBranchLink(instruction);
+        return;
+    }
+
+    // Unreachable if the format checks above are exhaustive - every 16-bit
+    // pattern belongs to exactly one of Thumb formats 1-19.
 }
 
 } // namespace gba
