@@ -35,6 +35,7 @@ public:
 private:
     static constexpr std::size_t kEwramSize   = 256 * 1024;
     static constexpr std::size_t kIwramSize   = 32 * 1024;
+    static constexpr std::size_t kIoSize      = 1 * 1024; // more than the real ~0x400 I/O area needs, rounds up cleanly
     static constexpr std::size_t kPaletteSize = 1 * 1024;
     static constexpr std::size_t kVramSize    = 96 * 1024;
     static constexpr std::size_t kOamSize     = 1 * 1024;
@@ -42,12 +43,18 @@ private:
 
     std::array<u8, kEwramSize>   ewram_{};
     std::array<u8, kIwramSize>   iwram_{};
+    std::array<u8, kIoSize>      io_{};
     std::array<u8, kPaletteSize> palette_{};
     std::array<u8, kVramSize>    vram_{};
     std::array<u8, kOamSize>     oam_{};
     std::vector<u8>              rom_;
 
-    // TODO: BIOS ROM, I/O register file, DMA/timer/interrupt state.
+    // TODO: BIOS ROM, DMA/timer/interrupt state. io_ is currently a flat
+    // byte array with no read-side-effect handling (e.g. reading KEYINPUT
+    // won't reflect real input yet, VCOUNT won't advance) - that's the
+    // interrupts/timers milestone. For now it's just enough to let the PPU
+    // read DISPCNT and the CPU/PPU exchange state through a real memory
+    // location instead of a special-cased backdoor.
 };
 
 } // namespace gba

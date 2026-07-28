@@ -27,4 +27,10 @@ namespace mem {
     constexpr u32 kRomBase     = 0x0800'0000; // cartridge ROM, up to 32 MB
 }
 
+// I/O register byte offsets within the I/O region (GBATEK "GBA I/O Map").
+// Add to this as more registers come online (timers, DMA, keypad, ...).
+namespace io {
+    constexpr u32 kDispcnt = 0x000; // LCD Control - display mode, layer enables
+}
+
 } // namespace gba

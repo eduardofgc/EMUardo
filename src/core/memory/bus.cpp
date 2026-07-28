@@ -32,17 +32,33 @@ bool Bus::LoadRom(const std::string& path) {
     return true;
 }
 
-// NOTE on the current state of this function: only EWRAM/IWRAM/ROM are wired
-// up so far, each masked to its region size to emulate mirroring. BIOS, I/O
-// registers, palette/VRAM/OAM reads, and open-bus behavior for unmapped
-// regions are TODOs for the memory-map milestone - ppu.cpp will need
-// palette/VRAM/OAM plumbed in once that's underway.
+// NOTE on the current state of this function: BIOS reads and open-bus
+// behavior for genuinely unmapped regions are still TODO. Everything the
+// CPU and PPU actually need so far - EWRAM/IWRAM/ROM, I/O registers,
+// palette/VRAM/OAM - is wired up.
 u8 Bus::Read8(u32 address) const {
     switch (address & 0x0F00'0000) {
         case mem::kEwramBase:
             return ewram_[address & (kEwramSize - 1)];
         case mem::kIwramBase:
             return iwram_[address & (kIwramSize - 1)];
+        case mem::kIoBase:
+            return io_[address & (kIoSize - 1)];
+        case mem::kPaletteBase:
+            return palette_[address & (kPaletteSize - 1)];
+        case mem::kVramBase: {
+            // VRAM mirrors within a 128 KB window, but only 96 KB of it is
+            // real - the last 32 KB of that window mirrors the 32 KB
+            // immediately before it, rather than repeating the whole thing.
+            // See GBATEK "VRAM Mirroring".
+            std::size_t offset = address & 0x1'FFFF;
+            if (offset >= kVramSize) {
+                offset -= 0x8000;
+            }
+            return vram_[offset];
+        }
+        case mem::kOamBase:
+            return oam_[address & (kOamSize - 1)];
         case mem::kRomBase:
         case mem::kRomBase + 0x0100'0000:
         case mem::kRomBase + 0x0200'0000: {
@@ -50,7 +66,7 @@ u8 Bus::Read8(u32 address) const {
             return offset < rom_.size() ? rom_[offset] : 0;
         }
         default:
-            // TODO: BIOS, I/O, palette, VRAM, OAM, open bus.
+            // TODO: BIOS reads, open bus for genuinely unmapped regions.
             return 0;
     }
 }
@@ -74,9 +90,30 @@ void Bus::Write8(u32 address, u8 value) {
         case mem::kIwramBase:
             iwram_[address & (kIwramSize - 1)] = value;
             return;
+        case mem::kIoBase:
+            // TODO: several I/O registers have write side effects (e.g.
+            // writing DISPSTAT/timers/DMA control) that a flat byte array
+            // can't model - fine for DISPCNT today, will need real
+            // register handling once timers/DMA/interrupts land.
+            io_[address & (kIoSize - 1)] = value;
+            return;
+        case mem::kPaletteBase:
+            palette_[address & (kPaletteSize - 1)] = value;
+            return;
+        case mem::kVramBase: {
+            std::size_t offset = address & 0x1'FFFF;
+            if (offset >= kVramSize) {
+                offset -= 0x8000;
+            }
+            vram_[offset] = value;
+            return;
+        }
+        case mem::kOamBase:
+            oam_[address & (kOamSize - 1)] = value;
+            return;
         default:
-            // TODO: I/O, palette, VRAM, OAM. ROM writes are ignored (or used
-            // for GPIO/RTC on some carts - not a concern until much later).
+            // ROM writes are ignored (or used for GPIO/RTC on some carts -
+            // not a concern until much later).
             return;
     }
 }
