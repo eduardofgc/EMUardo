@@ -34,6 +34,13 @@ namespace io {
     constexpr u32 kDispstat = 0x004; // General LCD Status - VBlank/HBlank/VCount flags+IRQ enables
     constexpr u32 kVcount   = 0x006; // Current scanline being drawn (read-only on real hardware)
 
+    constexpr u32 kBg0Cnt = 0x008; constexpr u32 kBg1Cnt = 0x00A;
+    constexpr u32 kBg2Cnt = 0x00C; constexpr u32 kBg3Cnt = 0x00E;
+    constexpr u32 kBg0HOfs = 0x010; constexpr u32 kBg0VOfs = 0x012;
+    constexpr u32 kBg1HOfs = 0x014; constexpr u32 kBg1VOfs = 0x016;
+    constexpr u32 kBg2HOfs = 0x018; constexpr u32 kBg2VOfs = 0x01A;
+    constexpr u32 kBg3HOfs = 0x01C; constexpr u32 kBg3VOfs = 0x01E;
+
     constexpr u32 kTm0CntL = 0x100; constexpr u32 kTm0CntH = 0x102;
     constexpr u32 kTm1CntL = 0x104; constexpr u32 kTm1CntH = 0x106;
     constexpr u32 kTm2CntL = 0x108; constexpr u32 kTm2CntH = 0x10A;

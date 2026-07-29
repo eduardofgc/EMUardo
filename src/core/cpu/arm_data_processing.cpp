@@ -4,11 +4,6 @@ namespace gba {
 
 namespace {
 
-// Every ARM add/subtract instruction (ADD/ADC/SUB/SBC/RSB/RSC/CMP/CMN) can
-// be expressed as a 3-input add: a + b + carryIn. Subtraction is done by
-// inverting the second operand and setting carryIn appropriately - this
-// mirrors what the ARM7TDMI's internal adder actually does, and it means
-// carry/overflow only need to be computed correctly in one place.
 struct AddResult {
     u32 value;
     bool carry;
@@ -37,8 +32,6 @@ void Cpu::ArmDataProcessing(u32 instruction) {
         ? GetImmediateOperand2(instruction, shifterCarry)
         : GetRegisterOperand2(instruction, shifterCarry);
 
-    // PC-as-operand quirk (see cpu.h): registers_[15] holds current+4
-    // already, so +4 more gives the PC+8 value GBATEK specifies.
     const u32 operand1 = (rn == 15) ? registers_[15] + 4 : GetRegister(static_cast<int>(rn));
 
     u32 result = 0;
@@ -123,9 +116,6 @@ void Cpu::ArmDataProcessing(u32 instruction) {
 
     if (setFlags) {
         if (rd == 15) {
-            // Writing CPSR from SPSR is how privileged code returns from
-            // an exception via e.g. "MOVS PC, LR" - restores mode, flags,
-            // and IRQ/FIQ masks all at once.
             SetCpsr(Spsr());
         } else {
             SetFlag(Flag::Z, result == 0);

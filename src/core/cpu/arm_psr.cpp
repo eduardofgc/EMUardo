@@ -2,11 +2,6 @@
 
 namespace gba {
 
-// The 4-bit field mask (bits19-16) selects which 8-bit bytes of the PSR
-// get overwritten: bit0=control(bits7:0, includes mode - dangerous to
-// write casually), bit1=extension(bits15:8, unused on ARMv4T), bit2=status
-// (bits23:16, unused on ARMv4T), bit3=flags(bits31:24, the common case:
-// N/Z/C/V plus, on ARMv5+, Q - not present here).
 u32 Cpu::ApplyPsrFieldMask(u32 current, u32 value, u32 fieldMask) const {
     u32 byteMask = 0;
     if ((fieldMask & 0x1u) != 0) byteMask |= 0x0000'00FFu;
@@ -34,7 +29,7 @@ void Cpu::ArmMsrRegister(u32 instruction) {
     if (useSpsr) {
         SetSpsr(result);
     } else {
-        SetCpsr(result); // handles a mode-field change via SwitchMode internally
+        SetCpsr(result); 
     }
 }
 

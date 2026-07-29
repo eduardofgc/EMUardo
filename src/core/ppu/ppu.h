@@ -44,16 +44,54 @@ private:
     Bus& bus_;
     std::array<u32, kScreenWidth * kScreenHeight> framebuffer_{};
 
+    // Per-pixel scratch buffers used while compositing a Mode 0 frame -
+    // members rather than locals so a single frame's render doesn't need
+    // four 240x160-element arrays living on the stack at once.
+    struct LayerPixel {
+        u32 color = 0;
+        bool opaque = false;
+    };
+    std::array<LayerPixel, kScreenWidth * kScreenHeight> bgLayer_[4]{};
+    std::array<LayerPixel, kScreenWidth * kScreenHeight> objLayer_{};
+    std::array<u8, kScreenWidth * kScreenHeight> objPriority_{};
+
     // Mode 3: BG2 is a single 240x160 16-bit-color bitmap, one pixel per
     // VRAM halfword, no palette indirection. GBATEK "BG Mode 3 - 16bit
     // Bitmap". This is the simplest of the six modes and the natural
     // first one to implement.
     void RenderMode3();
 
+    // Mode 0: up to four regular ("text mode") tiled backgrounds plus OBJ
+    // sprites, composited by priority. This is the mode the large majority
+    // of commercial GBA games actually use. GBATEK "Text BG" / "OBJs".
+    void RenderMode0();
+
+    // Fills bgLayer_[bgIndex] with one background's pixels for this frame,
+    // honoring its control register (tile/screen base, size, color depth)
+    // and HOFS/VOFS scroll registers. Transparent pixels (color index 0)
+    // are left with opaque=false so the compositor can see through them.
+    void RenderTextBackground(int bgIndex);
+
+    // Fills objLayer_/objPriority_ from OAM - all 128 sprites, regular
+    // (non-affine) only for now. Processes OAM back-to-front (index 127
+    // down to 0) so that, per GBATEK, lower OAM index wins ties at equal
+    // priority.
+    //
+    // TODO: affine (rotation/scaling) sprites, OBJ window mode,
+    // semi-transparent OBJ mode, mosaic - all currently ignored; affine
+    // sprites are skipped entirely (treated as not rendered) rather than
+    // drawn wrong.
+    void RenderSprites();
+
+    // Combines up to 4 BG layers (using each BG's configured priority,
+    // lower BG index wins ties) and the OBJ layer (which wins ties against
+    // a same-priority BG) into framebuffer_. Pixels with nothing opaque
+    // fall back to the backdrop color (palette entry 0).
+    void CompositeLayers(const bool bgEnabled[4], const u8 bgPriority[4], bool objEnabled);
+
     // TODO: Mode 4 (paletted bitmap, double-buffered), Mode 5 (smaller
-    // 16-bit bitmap, double-buffered), Modes 0-2 (tiled backgrounds +
-    // sprites - the ones real commercial games mostly use), DISPSTAT/
-    // VCOUNT register updates, per-scanline timing.
+    // 16-bit bitmap, double-buffered), Modes 1-2 (affine backgrounds),
+    // per-scanline timing (see Step()'s TODO).
 };
 
 } // namespace gba

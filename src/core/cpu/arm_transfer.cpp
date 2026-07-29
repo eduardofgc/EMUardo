@@ -26,16 +26,12 @@ void Cpu::ArmSingleDataSwap(u32 instruction) {
         bus_.Write8(address, static_cast<u8>(GetRegister(static_cast<int>(rm))));
         SetRegister(static_cast<int>(rd), temp);
     } else {
-        // TODO: real hardware rotates misaligned word reads; assuming
-        // aligned addresses for now (true for well-behaved code).
         const u32 temp = bus_.Read32(address);
         bus_.Write32(address, GetRegister(static_cast<int>(rm)));
         SetRegister(static_cast<int>(rd), temp);
     }
 }
 
-// LDRH/STRH/LDRSB/LDRSH - distinguished from ARM's other addressing modes
-// by using bit22 (not bit25) to select immediate vs register offset.
 void Cpu::ArmHalfwordTransfer(u32 instruction) {
     const bool preIndex = ((instruction >> 24) & 1u) != 0;
     const bool up = ((instruction >> 23) & 1u) != 0;
@@ -63,7 +59,7 @@ void Cpu::ArmHalfwordTransfer(u32 instruction) {
         }
         SetRegister(static_cast<int>(rd), value);
     } else {
-        // Only STRH (sh == 01) is a valid store form here.
+
         bus_.Write16(address, static_cast<u16>(GetRegister(static_cast<int>(rd))));
     }
 
@@ -76,8 +72,7 @@ void Cpu::ArmHalfwordTransfer(u32 instruction) {
 }
 
 void Cpu::ArmSingleDataTransfer(u32 instruction) {
-    // NOTE: opposite convention from the halfword-transfer family above -
-    // here bit25 selects the offset kind: 0 = immediate, 1 = shifted register.
+
     const bool immediateOffset = ((instruction >> 25) & 1u) == 0;
     const bool preIndex = ((instruction >> 24) & 1u) != 0;
     const bool up = ((instruction >> 23) & 1u) != 0;
@@ -91,10 +86,7 @@ void Cpu::ArmSingleDataTransfer(u32 instruction) {
     if (immediateOffset) {
         offset = instruction & 0xFFFu;
     } else {
-        // Shift amount is always an immediate here (bit4 is guaranteed 0 -
-        // register-specified shift amounts aren't a valid encoding for
-        // this instruction class). The shifter's carry output is discarded:
-        // LDR/STR never affects condition flags.
+
         const u32 rm = instruction & 0xFu;
         const auto shiftType = static_cast<ShiftType>((instruction >> 5) & 0x3u);
         const u32 shiftAmount = (instruction >> 7) & 0x1Fu;
@@ -103,7 +95,6 @@ void Cpu::ArmSingleDataTransfer(u32 instruction) {
                         discardedCarry, /*isImmediateShift=*/true);
     }
 
-    // PC-as-base quirk (see cpu.h): +4 more on top of the stored +4 gives PC+8.
     const u32 base = (rn == 15) ? registers_[15] + 4 : GetRegister(static_cast<int>(rn));
     const u32 address = preIndex ? (up ? base + offset : base - offset) : base;
 
@@ -111,12 +102,12 @@ void Cpu::ArmSingleDataTransfer(u32 instruction) {
         const u32 value = byteTransfer ? bus_.Read8(address) : bus_.Read32(address);
         SetRegister(static_cast<int>(rd), value);
         if (rd == 15) {
-            registers_[15] &= ~0x3u; // keep PC word-aligned after a load into it
+            registers_[15] &= ~0x3u;
         }
     } else {
         u32 value = GetRegister(static_cast<int>(rd));
         if (rd == 15) {
-            value = registers_[15] + 4; // storing PC also reads the PC+8 value
+            value = registers_[15] + 4; 
         }
         if (byteTransfer) {
             bus_.Write8(address, static_cast<u8>(value));
@@ -132,10 +123,7 @@ void Cpu::ArmSingleDataTransfer(u32 instruction) {
     }
 }
 
-// LDM/STM. Registers are always transferred in ascending register-number
-// order to ascending addresses; the P/U bits only choose where that
-// ascending range sits relative to the base register (GBATEK's
-// IA/IB/DA/DB addressing modes).
+
 void Cpu::ArmBlockDataTransfer(u32 instruction) {
     const bool preIndex = ((instruction >> 24) & 1u) != 0;
     const bool up = ((instruction >> 23) & 1u) != 0;
@@ -159,9 +147,7 @@ void Cpu::ArmBlockDataTransfer(u32 instruction) {
         writebackAddress = base - static_cast<u32>(numRegs) * 4;
     }
 
-    // TODO: loadPsrOrForceUser's "force user-mode registers" variant
-    // (S bit set, r15 not in list) isn't implemented - it's rarely used
-    // outside OS-level context switches, which the GBA has no use for.
+
     const bool restoreCpsrFromSpsr = loadPsrOrForceUser && load && ((regList & 0x8000u) != 0);
 
     u32 address = startAddress;
@@ -181,10 +167,7 @@ void Cpu::ArmBlockDataTransfer(u32 instruction) {
         SetCpsr(Spsr());
     }
 
-    // Per the ARM spec, writeback with the base register in the list
-    // during an LDM is left to the loaded value rather than the computed
-    // writeback address (the loaded value "wins" since it's written last
-    // in real hardware's internal ordering too).
+
     const bool baseWasLoaded = load && ((regList >> rn) & 1u) != 0;
     if (writeback && !baseWasLoaded) {
         SetRegister(static_cast<int>(rn), writebackAddress);
