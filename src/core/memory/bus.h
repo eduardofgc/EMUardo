@@ -32,6 +32,12 @@ public:
     void Write16(u32 address, u16 value);
     void Write32(u32 address, u32 value);
 
+    // Sets a bit in the IF register directly, bypassing the write-1-to-
+    // clear semantics that apply to CPU writes at that address (see
+    // Write8's special case) - hardware raising a flag is a plain OR.
+    // Takes one of the gba::irq:: bit constants.
+    void RequestInterrupt(u16 flagBit);
+
 private:
     static constexpr std::size_t kEwramSize   = 256 * 1024;
     static constexpr std::size_t kIwramSize   = 32 * 1024;

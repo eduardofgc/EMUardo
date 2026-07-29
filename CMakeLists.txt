@@ -57,6 +57,8 @@ add_library(gba_core
     src/core/cpu/thumb_alu.cpp
     src/core/cpu/thumb_transfer.cpp
     src/core/cpu/thumb_branch.cpp
+    src/core/io/timers.cpp
+    src/core/io/dma.cpp
     src/core/memory/bus.cpp
     src/core/ppu/ppu.cpp
     src/core/emulator.cpp

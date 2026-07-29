@@ -142,6 +142,40 @@ void Cpu::EnterException(CpuMode mode, u32 vectorAddress) {
     registers_[15] = vectorAddress;
 }
 
+bool Cpu::CheckInterrupts() {
+    if (GetFlag(Flag::I)) {
+        return false; // CPU-side IRQ disable (CPSR I bit)
+    }
+
+    const u16 ime = bus_.Read16(mem::kIoBase + io::kIme);
+    if ((ime & 0x1u) == 0) {
+        return false; // master enable off
+    }
+
+    const u16 enabled = bus_.Read16(mem::kIoBase + io::kIe);
+    const u16 requested = bus_.Read16(mem::kIoBase + io::kIf);
+    if ((enabled & requested) == 0) {
+        return false; // nothing both enabled and pending
+    }
+
+    // NOTE: we don't clear the matching IF bit(s) here - real hardware
+    // doesn't either. Acknowledging an interrupt is software's job (the
+    // handler writes 1 back to IF, see Bus::Write8's special case), which
+    // is also what lets several sources share one IF bit correctly.
+
+    // Real IRQ handlers universally return via "SUBS PC,LR,#4" - a
+    // convention that compensates for the 3-stage pipeline's PC-ahead
+    // offset on real hardware. We don't model that pipeline (registers_[15]
+    // here already holds the address of the next not-yet-fetched
+    // instruction, with no offset baked in), so to make that same "-4"
+    // land on the correct address, LR_irq needs the +4 added explicitly
+    // here - EnterException() just copies whatever's in registers_[15]
+    // into LR verbatim.
+    registers_[15] += 4;
+    EnterException(CpuMode::IRQ, 0x0000'0018u);
+    return true;
+}
+
 // ---------------------------------------------------------------------
 // Fetch / condition checking
 // ---------------------------------------------------------------------
@@ -176,6 +210,10 @@ bool Cpu::CheckCondition(u32 instruction) const {
 }
 
 int Cpu::Step() {
+    if (CheckInterrupts()) {
+        return 1; // PC now points at the IRQ vector - don't also fetch/execute this call
+    }
+
     if (GetFlag(Flag::T)) {
         const u16 instruction = FetchThumb();
         registers_[15] += 2; // advance PC before execute - mirrors the ARM path below

@@ -90,13 +90,21 @@ void Bus::Write8(u32 address, u8 value) {
         case mem::kIwramBase:
             iwram_[address & (kIwramSize - 1)] = value;
             return;
-        case mem::kIoBase:
-            // TODO: several I/O registers have write side effects (e.g.
-            // writing DISPSTAT/timers/DMA control) that a flat byte array
-            // can't model - fine for DISPCNT today, will need real
-            // register handling once timers/DMA/interrupts land.
-            io_[address & (kIoSize - 1)] = value;
+        case mem::kIoBase: {
+            const std::size_t offset = address & (kIoSize - 1);
+            if (offset == io::kIf || offset == io::kIf + 1) {
+                // IF: writing a 1 to a bit clears it (acknowledges that
+                // interrupt); writing 0 leaves the bit alone. GBATEK
+                // "IF - Interrupt Request Flags". This is why IF can't
+                // just be a plain byte in the flat array like most of the
+                // I/O region - a normal write would set bits, not clear
+                // them.
+                io_[offset] &= static_cast<u8>(~value);
+                return;
+            }
+            io_[offset] = value;
             return;
+        }
         case mem::kPaletteBase:
             palette_[address & (kPaletteSize - 1)] = value;
             return;
@@ -128,6 +136,18 @@ void Bus::Write32(u32 address, u32 value) {
     address &= ~0x3u;
     Write16(address, static_cast<u16>(value & 0xFFFF));
     Write16(address + 2, static_cast<u16>((value >> 16) & 0xFFFF));
+}
+
+void Bus::RequestInterrupt(u16 flagBit) {
+    const u32 address = mem::kIoBase + io::kIf;
+    const std::size_t offset = address & (kIoSize - 1);
+    // Direct array OR, not the public Write16 path - see Write8's IF
+    // special case for why a normal write wouldn't do the right thing
+    // here (it would try to clear bits rather than set them).
+    const u16 current = static_cast<u16>(io_[offset] | (io_[offset + 1] << 8));
+    const u16 updated = current | flagBit;
+    io_[offset] = static_cast<u8>(updated & 0xFF);
+    io_[offset + 1] = static_cast<u8>((updated >> 8) & 0xFF);
 }
 
 } // namespace gba

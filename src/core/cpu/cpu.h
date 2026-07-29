@@ -140,6 +140,17 @@ private:
     // interrupts, forces ARM state, and jumps to the vector address.
     void EnterException(CpuMode mode, u32 vectorAddress);
 
+    // Samples IME/IE/IF and the CPU's own IRQ-disable flag; if an
+    // interrupt is both requested and enabled at every level, enters the
+    // IRQ exception and returns true (so Step() knows to skip its normal
+    // fetch/execute for this call - otherwise we'd fetch and execute
+    // whatever garbage sits at the vector address before PC has even
+    // settled there). Called once per Step(), before fetch/decode - real
+    // hardware samples for interrupts between instructions, and since we
+    // don't model the pipeline, "before the next fetch" is the closest
+    // equivalent boundary.
+    bool CheckInterrupts();
+
     // --- Thumb instruction set --------------------------------------------
     // Named after the 19 instruction "formats" in the ARM7TDMI Technical
     // Reference Manual's Thumb chapter - each format is a distinct 16-bit

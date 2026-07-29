@@ -18,3 +18,9 @@ add_executable(gba_tests_ppu_mode3
 )
 target_link_libraries(gba_tests_ppu_mode3 PRIVATE gba_core)
 add_test(NAME ppu_mode3_test COMMAND gba_tests_ppu_mode3)
+
+add_executable(gba_tests_irq_timer_dma
+    test_interrupts_timers_dma.cpp
+)
+target_link_libraries(gba_tests_irq_timer_dma PRIVATE gba_core)
+add_test(NAME irq_timer_dma_test COMMAND gba_tests_irq_timer_dma)
