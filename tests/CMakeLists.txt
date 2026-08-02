@@ -30,3 +30,27 @@ add_executable(gba_tests_ppu_mode0
 )
 target_link_libraries(gba_tests_ppu_mode0 PRIVATE gba_core)
 add_test(NAME ppu_mode0_test COMMAND gba_tests_ppu_mode0)
+
+add_executable(gba_tests_hle_irq
+    test_hle_bios_irq_trampoline.cpp
+)
+target_link_libraries(gba_tests_hle_irq PRIVATE gba_core)
+add_test(NAME hle_irq_trampoline_test COMMAND gba_tests_hle_irq)
+
+add_executable(gba_tests_hle_swi
+    test_hle_bios_swi.cpp
+)
+target_link_libraries(gba_tests_hle_swi PRIVATE gba_core)
+add_test(NAME hle_swi_test COMMAND gba_tests_hle_swi)
+
+add_executable(gba_tests_keypad
+    test_keypad.cpp
+)
+target_link_libraries(gba_tests_keypad PRIVATE gba_core)
+add_test(NAME keypad_test COMMAND gba_tests_keypad)
+
+add_executable(gba_tests_ppu_mode4
+    test_ppu_mode4.cpp
+)
+target_link_libraries(gba_tests_ppu_mode4 PRIVATE gba_core)
+add_test(NAME ppu_mode4_test COMMAND gba_tests_ppu_mode4)

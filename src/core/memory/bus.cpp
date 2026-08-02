@@ -5,7 +5,45 @@
 
 namespace gba {
 
-Bus::Bus() = default;
+Bus::Bus() {
+    InstallHleBios();
+    // KEYINPUT is active-LOW; io_ defaults to all zero bits, which would
+    // read as "every button held" until the first real input update -
+    // set it to "nothing pressed" up front instead.
+    io_[io::kKeyInput] = static_cast<u8>(key::kAll & 0xFFu);
+    io_[io::kKeyInput + 1] = static_cast<u8>((key::kAll >> 8) & 0xFFu);
+}
+
+void Bus::InstallHleBios() {
+    // Writes 32-bit little-endian words directly into bios_, bypassing
+    // Write8/Write32 entirely - this is boot-time setup of the BIOS image
+    // itself, not a memory-mapped write a CPU instruction would make.
+    auto writeWord = [this](u32 offset, u32 word) {
+        bios_[offset + 0] = static_cast<u8>(word & 0xFFu);
+        bios_[offset + 1] = static_cast<u8>((word >> 8) & 0xFFu);
+        bios_[offset + 2] = static_cast<u8>((word >> 16) & 0xFFu);
+        bios_[offset + 3] = static_cast<u8>((word >> 24) & 0xFFu);
+    };
+
+    // IRQ vector (0x18) trampoline. See the class comment in bus.h for
+    // what this does and why it exists instead of a real BIOS dump.
+    //   0x18: STMFD SP!, {R0-R3,R12,LR}
+    //   0x1C: LDR  R0, [PC, #0x10]     ; R0 = the literal at 0x34 below
+    //   0x20: LDR  R0, [R0]            ; R0 = *0x03007FFC (user handler ptr)
+    //   0x24: MOV  LR, PC              ; LR = 0x2C (return address after BX)
+    //   0x28: BX   R0                  ; call the user handler
+    //   0x2C: LDMFD SP!, {R0-R3,R12,LR}
+    //   0x30: SUBS PC, LR, #4          ; return from IRQ (also restores CPSR from SPSR)
+    //   0x34: .word 0x03007FFC         ; literal pool
+    writeWord(0x18, 0xE92D'500Fu);
+    writeWord(0x1C, 0xE59F'0010u);
+    writeWord(0x20, 0xE590'0000u);
+    writeWord(0x24, 0xE1A0'E00Fu);
+    writeWord(0x28, 0xE12F'FF10u);
+    writeWord(0x2C, 0xE8BD'500Fu);
+    writeWord(0x30, 0xE25E'F004u);
+    writeWord(0x34, 0x0300'7FFCu);
+}
 
 bool Bus::LoadRom(const std::string& path) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
@@ -32,12 +70,14 @@ bool Bus::LoadRom(const std::string& path) {
     return true;
 }
 
-// NOTE on the current state of this function: BIOS reads and open-bus
-// behavior for genuinely unmapped regions are still TODO. Everything the
-// CPU and PPU actually need so far - EWRAM/IWRAM/ROM, I/O registers,
-// palette/VRAM/OAM - is wired up.
+// NOTE on the current state of this function: open-bus behavior for
+// genuinely unmapped regions is still TODO. Everything the CPU and PPU
+// actually need so far - the HLE BIOS trampoline, EWRAM/IWRAM/ROM, I/O
+// registers, palette/VRAM/OAM - is wired up.
 u8 Bus::Read8(u32 address) const {
     switch (address & 0x0F00'0000) {
+        case mem::kBiosBase:
+            return bios_[address & (kBiosSize - 1)];
         case mem::kEwramBase:
             return ewram_[address & (kEwramSize - 1)];
         case mem::kIwramBase:
@@ -102,6 +142,11 @@ void Bus::Write8(u32 address, u8 value) {
                 io_[offset] &= static_cast<u8>(~value);
                 return;
             }
+            if (offset == io::kKeyInput || offset == io::kKeyInput + 1) {
+                // KEYINPUT is hardware-controlled (only Bus::SetKeyState
+                // updates it) - real hardware ignores CPU writes here too.
+                return;
+            }
             io_[offset] = value;
             return;
         }
@@ -148,6 +193,28 @@ void Bus::RequestInterrupt(u16 flagBit) {
     const u16 updated = current | flagBit;
     io_[offset] = static_cast<u8>(updated & 0xFF);
     io_[offset + 1] = static_cast<u8>((updated >> 8) & 0xFF);
+}
+
+void Bus::SetKeyState(u16 pressedMask) {
+    const u16 keyInputValue = static_cast<u16>(~pressedMask & key::kAll);
+    const std::size_t offset = io::kKeyInput;
+    io_[offset] = static_cast<u8>(keyInputValue & 0xFFu);
+    io_[offset + 1] = static_cast<u8>((keyInputValue >> 8) & 0xFFu);
+
+    // KEYCNT: bits0-9 select which keys, bit14 = IRQ enable, bit15 =
+    // condition (0=OR, any selected key; 1=AND, all selected keys).
+    const u16 keycnt = static_cast<u16>(io_[io::kKeyCnt] | (io_[io::kKeyCnt + 1] << 8));
+    const bool irqEnable = (keycnt & (1u << 14)) != 0;
+    if (!irqEnable) {
+        return;
+    }
+    const u16 selected = keycnt & key::kAll;
+    const bool useAnd = (keycnt & (1u << 15)) != 0;
+    const bool condition = useAnd ? ((pressedMask & selected) == selected)
+                                   : ((pressedMask & selected) != 0);
+    if (condition) {
+        RequestInterrupt(irq::kKeypad);
+    }
 }
 
 } // namespace gba

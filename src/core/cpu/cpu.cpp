@@ -14,6 +14,19 @@ void Cpu::Reset() {
     r14_banked_.fill(0);
     spsr_banked_.fill(0);
 
+    // Real hardware's BIOS sets up a stack pointer for each mode before
+    // handing control to the game (GBATEK "BIOS RAM Usage") - since we
+    // skip running real BIOS boot code, we have to set these up ourselves
+    // or any code that pushes to the stack (including our own HLE IRQ
+    // trampoline's STMFD/LDMFD) writes to whatever SP happens to default
+    // to (zero), silently corrupting memory near address 0.
+    // Index into r13_banked_: 0=User/System, 1=FIQ, 2=IRQ, 3=Supervisor,
+    // 4=Abort, 5=Undefined - see R13R14BankIndex().
+    r13_banked_[0] = 0x0300'7F00u; // User/System
+    r13_banked_[2] = 0x0300'7FA0u; // IRQ
+    r13_banked_[3] = 0x0300'7FE0u; // Supervisor
+    registers_[13] = r13_banked_[0]; // active register file starts in System mode
+
     // Real hardware runs a bit of BIOS code that ends up jumping to
     // 0x0800'0000 in ARM state, System mode, IRQ/FIQ disabled. We
     // fast-forward directly here - a "skip BIOS" boot path is standard
@@ -209,7 +222,28 @@ bool Cpu::CheckCondition(u32 instruction) const {
     }
 }
 
+bool Cpu::CheckHaltWakeup() const {
+    // Halt exit only requires (IE & IF) != 0, unlike normal interrupt
+    // dispatch - it wakes even with IME=0 (the CPU just resumes normal
+    // execution in that case, without actually servicing the interrupt).
+    // GBATEK "SWI 02h/03h - Halt/Stop".
+    const u16 enabled = bus_.Read16(mem::kIoBase + io::kIe);
+    const u16 requested = bus_.Read16(mem::kIoBase + io::kIf);
+    return (enabled & requested) != 0;
+}
+
 int Cpu::Step() {
+    if (halted_) {
+        if (CheckHaltWakeup()) {
+            halted_ = false;
+            // Fall through - if IME/IE also permit it, the interrupt that
+            // just woke us should be dispatched immediately this same
+            // Step(), matching real hardware.
+        } else {
+            return 1; // still halted; burn a cycle doing nothing
+        }
+    }
+
     if (CheckInterrupts()) {
         return 1; // PC now points at the IRQ vector - don't also fetch/execute this call
     }

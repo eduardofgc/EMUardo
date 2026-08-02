@@ -41,6 +41,9 @@ namespace io {
     constexpr u32 kBg2HOfs = 0x018; constexpr u32 kBg2VOfs = 0x01A;
     constexpr u32 kBg3HOfs = 0x01C; constexpr u32 kBg3VOfs = 0x01E;
 
+    constexpr u32 kKeyInput = 0x130; // Key status - active LOW (0=pressed, 1=released)
+    constexpr u32 kKeyCnt   = 0x132; // Key interrupt control
+
     constexpr u32 kTm0CntL = 0x100; constexpr u32 kTm0CntH = 0x102;
     constexpr u32 kTm1CntL = 0x104; constexpr u32 kTm1CntH = 0x106;
     constexpr u32 kTm2CntL = 0x108; constexpr u32 kTm2CntH = 0x10A;
@@ -77,6 +80,23 @@ namespace irq {
     constexpr u16 kDma3    = 1u << 11;
     constexpr u16 kKeypad  = 1u << 12;
     constexpr u16 kGamePak = 1u << 13;
+}
+
+// KEYINPUT/KEYCNT bit layout (GBATEK "Keypad Input"). KEYINPUT itself is
+// active LOW - a set bit here means "pressed", but writing to the actual
+// register requires inverting these before storing (see Bus::SetKeyState).
+namespace key {
+    constexpr u16 kA      = 1u << 0;
+    constexpr u16 kB      = 1u << 1;
+    constexpr u16 kSelect = 1u << 2;
+    constexpr u16 kStart  = 1u << 3;
+    constexpr u16 kRight  = 1u << 4;
+    constexpr u16 kLeft   = 1u << 5;
+    constexpr u16 kUp     = 1u << 6;
+    constexpr u16 kDown   = 1u << 7;
+    constexpr u16 kL      = 1u << 8;
+    constexpr u16 kR      = 1u << 9;
+    constexpr u16 kAll    = 0x3FFu;
 }
 
 } // namespace gba

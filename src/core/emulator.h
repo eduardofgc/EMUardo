@@ -25,6 +25,10 @@ public:
 
     const Ppu& ppu() const { return ppu_; }
 
+    // Forwards to Bus::SetKeyState - call once per host frame with the
+    // current button state before RunFrame().
+    void SetKeyState(u16 pressedMask) { bus_.SetKeyState(pressedMask); }
+
 private:
     // Declaration order matters here: members construct in this order
     // regardless of the constructor's initializer-list order, and cpu_/

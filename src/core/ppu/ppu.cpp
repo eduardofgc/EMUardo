@@ -50,8 +50,11 @@ void Ppu::RenderFrame() {
         case 3:
             RenderMode3();
             break;
+        case 4:
+            RenderMode4();
+            break;
         default: {
-            // Modes 1-2 (affine backgrounds) and 4-5 (other bitmap modes)
+            // Modes 1-2 (affine backgrounds) and 5 (smaller bitmap mode)
             // aren't implemented yet - fill with the same placeholder
             // color used before any rendering existed, so "unimplemented
             // mode" and "nothing rendered yet" look identically obvious
@@ -78,6 +81,25 @@ void Ppu::RenderMode3() {
             const u32 address = mem::kVramBase + pixelIndex * 2;
             const u16 color = bus_.Read16(address);
             framebuffer_[pixelIndex] = Bgr555ToRgba8888(color);
+        }
+    }
+}
+
+void Ppu::RenderMode4() {
+    // Mode 4: BG2 is a 240x160 8bpp paletted bitmap - one byte per pixel,
+    // indexing the BG palette (same palette bank Mode 0's 8bpp
+    // backgrounds use). Double-buffered: DISPCNT bit4 selects which of
+    // the two VRAM frames is currently visible.
+    const u16 dispcnt = bus_.Read16(mem::kIoBase + io::kDispcnt);
+    const bool secondFrame = (dispcnt & (1u << 4)) != 0;
+    const u32 frameBase = mem::kVramBase + (secondFrame ? 0xA000u : 0u);
+
+    for (int y = 0; y < kScreenHeight; ++y) {
+        for (int x = 0; x < kScreenWidth; ++x) {
+            const u32 pixelIndex = static_cast<u32>(y * kScreenWidth + x);
+            const u8 colorIndex = bus_.Read8(frameBase + pixelIndex);
+            const u32 paletteAddr = mem::kPaletteBase + static_cast<u32>(colorIndex) * 2u;
+            framebuffer_[pixelIndex] = Bgr555ToRgba8888(bus_.Read16(paletteAddr));
         }
     }
 }

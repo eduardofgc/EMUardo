@@ -151,6 +151,36 @@ private:
     // equivalent boundary.
     bool CheckInterrupts();
 
+    // --- HLE BIOS (SWI calls) --------------------------------------------
+    // We don't have a real BIOS ROM (see Bus::InstallHleBios for why), so
+    // most SWI numbers are implemented natively here instead of by running
+    // real BIOS code - far more tractable than hand-assembling things like
+    // integer division or a memory-fill loop. Returns true if `number` was
+    // handled (Arm/ThumbSoftwareInterrupt then skip the real exception
+    // entry entirely - the call just "returns" immediately with its
+    // result in place, same as it would after a real BIOS call completes).
+    //
+    // TODO: only the SWI numbers games rely on most heavily for not
+    // hanging (Halt/IntrWait) or that are simple to implement natively
+    // (Div, CpuSet) are covered. Notably NOT implemented: the LZ77/Huffman/
+    // RL decompression calls many games use for compressed graphics data -
+    // those will currently silently do nothing, so compressed tiles/maps
+    // will show as garbage or blank until that's added.
+    bool TryHleSwi(u32 number);
+    void HleRegisterRamReset();
+    void HleHalt();
+    void HleIntrWait();
+    void HleDiv();
+    void HleDivArm();
+    void HleCpuSet();
+    void HleCpuFastSet();
+
+    // True between a Halt/IntrWait-family SWI and the next enabled
+    // interrupt. Per GBATEK, Halt exit only requires (IE & IF) != 0 - it
+    // wakes even with IME=0, unlike normal interrupt dispatch.
+    bool halted_ = false;
+    bool CheckHaltWakeup() const;
+
     // --- Thumb instruction set --------------------------------------------
     // Named after the 19 instruction "formats" in the ARM7TDMI Technical
     // Reference Manual's Thumb chapter - each format is a distinct 16-bit

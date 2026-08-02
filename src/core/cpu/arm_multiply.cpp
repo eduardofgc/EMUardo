@@ -2,7 +2,10 @@
 
 namespace gba {
 
-
+// MUL/MLA. Note the register field names are the traditional (confusing)
+// ARM ones: bits19-16 hold the *destination* (Rd), bits15-12 hold the
+// accumulate operand (Rn) - not the "Rd is bits15-12" pattern every other
+// data-processing-shaped instruction uses.
 void Cpu::ArmMultiply(u32 instruction) {
     const bool accumulate = ((instruction >> 21) & 1u) != 0;
     const bool setFlags = ((instruction >> 20) & 1u) != 0;
@@ -20,9 +23,12 @@ void Cpu::ArmMultiply(u32 instruction) {
     if (setFlags) {
         SetFlag(Flag::Z, result == 0);
         SetFlag(Flag::N, (result & 0x8000'0000u) != 0);
+        // C is documented as "meaningless" after MUL/MLA on the ARM7TDMI;
+        // we leave it untouched rather than guess at a value.
     }
 }
 
+// UMULL/UMLAL/SMULL/SMLAL - 64-bit result split across RdHi:RdLo.
 void Cpu::ArmMultiplyLong(u32 instruction) {
     const bool isSigned = ((instruction >> 22) & 1u) != 0;
     const bool accumulate = ((instruction >> 21) & 1u) != 0;

@@ -33,7 +33,13 @@ void Cpu::ThumbConditionalBranch(u16 instruction) {
 // convention reads it back out of the faulting instruction; hardware
 // itself ignores it, so it's unused here.
 // ---------------------------------------------------------------------
-void Cpu::ThumbSoftwareInterrupt(u16 /*instruction*/) {
+void Cpu::ThumbSoftwareInterrupt(u16 instruction) {
+    // Thumb SWI's comment field is the full 8-bit immediate, unlike ARM's
+    // top-byte-of-24-bit-field encoding.
+    const u32 number = instruction & 0xFFu;
+    if (TryHleSwi(number)) {
+        return;
+    }
     EnterException(CpuMode::Supervisor, 0x0000'0008u);
 }
 

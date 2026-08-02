@@ -61,6 +61,13 @@ private:
     // first one to implement.
     void RenderMode3();
 
+    // Mode 4: BG2 is a 240x160 8-bit-per-pixel paletted bitmap (indices
+    // into the BG palette), double-buffered - DISPCNT bit4 selects which
+    // of the two VRAM frames (0x06000000 or 0x0600A000) is currently
+    // visible, letting a game draw into the hidden one and flip instantly
+    // instead of racing the beam. GBATEK "BG Mode 4 - 256 color Bitmap".
+    void RenderMode4();
+
     // Mode 0: up to four regular ("text mode") tiled backgrounds plus OBJ
     // sprites, composited by priority. This is the mode the large majority
     // of commercial GBA games actually use. GBATEK "Text BG" / "OBJs".
@@ -89,9 +96,8 @@ private:
     // fall back to the backdrop color (palette entry 0).
     void CompositeLayers(const bool bgEnabled[4], const u8 bgPriority[4], bool objEnabled);
 
-    // TODO: Mode 4 (paletted bitmap, double-buffered), Mode 5 (smaller
-    // 16-bit bitmap, double-buffered), Modes 1-2 (affine backgrounds),
-    // per-scanline timing (see Step()'s TODO).
+    // TODO: Mode 5 (smaller 16-bit bitmap, double-buffered), Modes 1-2
+    // (affine backgrounds), per-scanline timing (see Step()'s TODO).
 };
 
 } // namespace gba
