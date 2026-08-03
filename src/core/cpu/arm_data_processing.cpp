@@ -38,8 +38,15 @@ void Cpu::ArmDataProcessing(u32 instruction) {
         : GetRegisterOperand2(instruction, shifterCarry);
 
     // PC-as-operand quirk (see cpu.h): registers_[15] holds current+4
-    // already, so +4 more gives the PC+8 value GBATEK specifies.
-    const u32 operand1 = (rn == 15) ? registers_[15] + 4 : GetRegister(static_cast<int>(rn));
+    // already, so +4 more gives the PC+8 value GBATEK specifies. Register-
+    // specified shifts (bit4 set, non-immediate operand2) need one extra
+    // pipeline cycle on real hardware to fetch the shift amount, which
+    // pushes PC reads to +12 instead - this applies to Rn here exactly
+    // like it already does to Rm in GetRegisterOperand2.
+    const bool shiftFromRegister = !immediate && ((instruction >> 4) & 1u) != 0;
+    const u32 operand1 = (rn == 15)
+        ? registers_[15] + (shiftFromRegister ? 8u : 4u)
+        : GetRegister(static_cast<int>(rn));
 
     u32 result = 0;
     bool carryOut = shifterCarry;

@@ -3,8 +3,6 @@
 #include <string>
 
 #include "core/cpu/cpu.h"
-#include "core/io/dma.h"
-#include "core/io/timers.h"
 #include "core/memory/bus.h"
 #include "core/ppu/ppu.h"
 
@@ -25,19 +23,10 @@ public:
 
     const Ppu& ppu() const { return ppu_; }
 
-    // Forwards to Bus::SetKeyState - call once per host frame with the
-    // current button state before RunFrame().
-    void SetKeyState(u16 pressedMask) { bus_.SetKeyState(pressedMask); }
-
 private:
-    // Declaration order matters here: members construct in this order
-    // regardless of the constructor's initializer-list order, and cpu_/
-    // ppu_/timers_/dma_ all hold a Bus& that must already be alive.
     Bus bus_;
     Cpu cpu_;
     Ppu ppu_;
-    Timers timers_;
-    Dma dma_;
 };
 
 } // namespace gba
