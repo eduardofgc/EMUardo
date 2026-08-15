@@ -1,9 +1,9 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <string>
 #include <vector>
-
 #include "core/types.h"
 
 namespace gba {
@@ -16,6 +16,7 @@ namespace gba {
 class Bus {
 public:
     Bus();
+    ~Bus() = default;
 
     // Loads a .gba ROM file into cartridge memory. Returns false on
     // failure (bad path, exceeds max cartridge size, etc).
@@ -32,6 +33,9 @@ public:
     void Write16(u32 address, u16 value);
     void Write32(u32 address, u32 value);
 
+    // Get a pointer to the ROM region (for direct access by CPU if needed).
+    const std::vector<u8>& GetRom() const { return rom_; }
+
 private:
     static constexpr std::size_t kEwramSize   = 256 * 1024;
     static constexpr std::size_t kIwramSize   = 32 * 1024;
@@ -43,9 +47,9 @@ private:
     std::array<u8, kEwramSize>   ewram_{};
     std::array<u8, kIwramSize>   iwram_{};
     std::array<u8, kPaletteSize> palette_{};
-    std::array<u8, kVramSize>    vram_{};
-    std::array<u8, kOamSize>     oam_{};
-    std::vector<u8>              rom_;
+    std::array<u8, kVramSize>    vram_{};   // Video RAM
+    std::array<u8, kOamSize>     oam_;      // Object Attribute Memory
+    std::vector<u8>              rom_;      // Game ROM
 
     // TODO: BIOS ROM, I/O register file, DMA/timer/interrupt state.
 };

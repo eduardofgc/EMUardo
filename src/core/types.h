@@ -27,4 +27,13 @@ namespace mem {
     constexpr u32 kRomBase     = 0x0800'0000; // cartridge ROM, up to 32 MB
 }
 
+// Screen dimensions
+constexpr int kScreenWidth  = 240;
+constexpr int kScreenHeight = 160;
+
+// Timing
+constexpr int kCyclesPerSecond = 16783076; // GBA clock rate
+constexpr int kRefreshRate     = 60;        // Hz
+constexpr int kCyclesPerFrame  = kCyclesPerSecond / kRefreshRate;
+
 } // namespace gba

@@ -19,8 +19,8 @@ int main(int argc, char** argv) {
     SDL_Window* window = SDL_CreateWindow(
         "GBA Emulator",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        gba::Ppu::kScreenWidth * kWindowScale,
-        gba::Ppu::kScreenHeight * kWindowScale,
+        gba::kScreenWidth * kWindowScale,
+        gba::kScreenHeight * kWindowScale,
         SDL_WINDOW_SHOWN);
     if (!window) {
         std::fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
 
     SDL_Texture* texture = SDL_CreateTexture(
         renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING,
-        gba::Ppu::kScreenWidth, gba::Ppu::kScreenHeight);
+        gba::kScreenWidth, gba::kScreenHeight);
     if (!texture) {
         std::fprintf(stderr, "SDL_CreateTexture failed: %s\n", SDL_GetError());
         SDL_DestroyRenderer(renderer);
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
 
         if (SDL_UpdateTexture(
                 texture, nullptr, emulator.ppu().Framebuffer().data(),
-                gba::Ppu::kScreenWidth * static_cast<int>(sizeof(gba::u32))) != 0) {
+                gba::kScreenWidth * static_cast<int>(sizeof(gba::u32))) != 0) {
             std::fprintf(stderr, "SDL_UpdateTexture failed: %s\n", SDL_GetError());
         }
 

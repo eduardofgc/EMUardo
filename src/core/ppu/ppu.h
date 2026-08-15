@@ -1,39 +1,42 @@
 #pragma once
 
 #include <array>
-
+#include <cstdint>
 #include "core/types.h"
 
 namespace gba {
 
-// The GBA screen is a fixed 240x160 pixels, always. Background mode
-// (0-5) is selected via I/O register DISPCNT and changes how the four
-// background layers are interpreted (tiled vs bitmap, palette depth, etc).
+class Bus; // Forward declaration
+
 class Ppu {
 public:
-    static constexpr int kScreenWidth  = 240;
-    static constexpr int kScreenHeight = 160;
-
     Ppu();
+    ~Ppu() = default;
 
-    // Advances the PPU by one scanline's worth of dots. The GBA runs at
-    // ~59.7 Hz with 228 scanlines per frame (160 visible + 68 VBlank),
-    // 1232 dots per scanline - the real implementation will be driven by
-    // cycle counts from the main loop rather than being called per-line
-    // directly, but this is the right seam for now.
-    void Step();
+    // Set the bus for memory access (used for test pattern updates)
+    void SetBus(Bus* bus) { bus_ = bus; }
 
-    // RGBA8888 framebuffer, ready to hand to SDL as a texture.
+    // Called by Emulator to advance the PPU by one GBA frame.
+    // This will update the internal framebuffer if needed.
+    void Update();
+
+    // Access the current framebuffer (for rendering).
     const std::array<u32, kScreenWidth * kScreenHeight>& Framebuffer() const {
         return framebuffer_;
     }
 
 private:
-    std::array<u32, kScreenWidth * kScreenHeight> framebuffer_{};
+    // The framebuffer: one u32 per pixel (ABGR8888).
+    std::array<u32, kScreenWidth * kScreenHeight> framebuffer_;
 
-    // TODO: DISPCNT/DISPSTAT/VCOUNT registers, per-mode renderers
-    // (Mode 3/4 bitmap first, then Mode 0/1/2 tiled+sprites), access to
-    // the Bus for VRAM/OAM/palette reads.
+    // Pointer to the bus for reading test pattern seed (not used yet, but kept for future).
+    Bus* bus_ = nullptr;
+
+    // Seed for the test pattern, incremented each frame.
+    u8 frame_seed_ = 0;
+
+    // Generate the test pattern based on a seed value (0-255).
+    void GenerateTestPattern(u8 seed);
 };
 
 } // namespace gba

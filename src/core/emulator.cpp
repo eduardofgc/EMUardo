@@ -6,7 +6,10 @@ namespace {
 constexpr int kScanlinesPerFrame = 228; // 160 visible + 68 VBlank
 }
 
-Emulator::Emulator() : cpu_(bus_) {}
+Emulator::Emulator() : cpu_(bus_) {
+    // Set the bus for the PPU so it can access memory for test patterns (if needed)
+    ppu_.SetBus(&bus_);
+}
 
 bool Emulator::LoadRom(const std::string& path) {
     return bus_.LoadRom(path);
@@ -23,8 +26,11 @@ void Emulator::RunFrame() {
         while (cyclesRun < kCyclesPerScanline) {
             cyclesRun += cpu_.Step();
         }
-        ppu_.Step();
+        // PPU stepping is handled per frame, not per scanline, in this simple version.
+        // We'll update the PPU once per frame after all scanlines.
     }
+    // Update the PPU once per frame (for our test pattern)
+    ppu_.Update();
 }
 
 } // namespace gba
