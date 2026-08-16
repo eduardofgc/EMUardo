@@ -43,15 +43,17 @@ private:
     static constexpr std::size_t kVramSize    = 96 * 1024;
     static constexpr std::size_t kOamSize     = 1 * 1024;
     static constexpr std::size_t kMaxRomSize  = 32 * 1024 * 1024;
+    static constexpr std::size_t kIoSize      = 1 * 1024 * 1024; // 1MB I/O space (mirrored)
 
     std::array<u8, kEwramSize>   ewram_{};
     std::array<u8, kIwramSize>   iwram_{};
     std::array<u8, kPaletteSize> palette_{};
-    std::array<u8, kVramSize>    vram_{};   // Video RAM
-    std::array<u8, kOamSize>     oam_;      // Object Attribute Memory
-    std::vector<u8>              rom_;      // Game ROM
+    std::array<u8, kVramSize>    vram_;   // Video RAM
+    std::array<u8, kOamSize>     oam_;    // Object Attribute Memory
+    std::vector<u8>              rom_;    // Game ROM
+    std::array<u8, 0x400>        io_reg_; // I/O registers: 0x04000000-0x04003FF (base block, mirrored every 0x1000 bytes in 0x04000000-0x040FFFFF)
 
-    // TODO: BIOS ROM, I/O register file, DMA/timer/interrupt state.
+    // TODO: BIOS ROM, I/O register file (beyond the base 0x400 bytes), DMA/timer/interrupt state.
 };
 
 } // namespace gba

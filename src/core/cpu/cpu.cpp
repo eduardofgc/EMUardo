@@ -5,6 +5,8 @@
 
 namespace gba {
 
+static uint64_t g_instruction_count = 0;
+
 Cpu::Cpu(Bus& bus) : bus_(bus) {
     Reset();
 }
@@ -35,7 +37,13 @@ int Cpu::Step() {
     } else {
         // ARM state
         u32 opcode = FetchArm();
-        return ExecuteArm(opcode);
+        int cycles = ExecuteArm(opcode);
+        g_instruction_count++;
+        if (g_instruction_count % 100000 == 0) {
+            std::fprintf(stderr, "CPU: PC=0x%08X, opcode=0x%08X, instructions=%llu\n",
+                         registers_[15] - 4, opcode, g_instruction_count);
+        }
+        return cycles;
     }
 }
 
@@ -499,8 +507,9 @@ int Cpu::ExecuteArm(u32 opcode) {
             SetRegister(14, GetRegister(15) + 4); // Store return address in LR
         }
         
-        // Branch to target
-        SetRegister(15, GetRegister(15) + offset + 4); // +4 for pipeline
+        // Branch to target: PC of this instruction is registers_[15]
+        // Architecture: target = PC + 8 + offset
+        SetRegister(15, GetRegister(15) + offset + 8); // +8 for pipeline
         return 1;
     }
     // Load/Store instructions (opcode_4bit = 0b01xxxx)

@@ -13,11 +13,11 @@ public:
     Ppu();
     ~Ppu() = default;
 
-    // Set the bus for memory access (used for test pattern updates)
+    // Set the bus for memory access (used for VRAM, palette, etc.)
     void SetBus(Bus* bus) { bus_ = bus; }
 
     // Called by Emulator to advance the PPU by one GBA frame.
-    // This will update the internal framebuffer if needed.
+    // This will update the internal framebuffer based on the current display mode.
     void Update();
 
     // Access the current framebuffer (for rendering).
@@ -29,14 +29,11 @@ private:
     // The framebuffer: one u32 per pixel (ABGR8888).
     std::array<u32, kScreenWidth * kScreenHeight> framebuffer_;
 
-    // Pointer to the bus for reading test pattern seed (not used yet, but kept for future).
+    // Pointer to the bus for reading VRAM, palette, and I/O registers.
     Bus* bus_ = nullptr;
 
-    // Seed for the test pattern, incremented each frame.
-    u8 frame_seed_ = 0;
-
-    // Generate the test pattern based on a seed value (0-255).
-    void GenerateTestPattern(u8 seed);
+    // Generate a test pattern (fallback when no valid mode is set).
+    void GenerateTestPattern();
 };
 
 } // namespace gba
