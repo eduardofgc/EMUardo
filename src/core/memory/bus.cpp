@@ -7,18 +7,22 @@
 
 namespace gba {
 
-Bus::Bus() = default;
+Bus::Bus() {
+    // Initialize I/O registers: set VBlank flag in REG_DISPSTAT (assume at 0x04000002) to 1
+    io_reg_[2] = 0x01; // VBlank bit set
+    vram_write_count_ = 0;
+}
 
 bool Bus::LoadRom(const std::string& path) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file) {
-        std::fprintf(stderr, "Bus::LoadRom: failed to open '%s'\n", path.c_str());
+        std::fprintf(stderr, "Bus::LoadRom: failed to open '%s'\\n", path.c_str());
         return false;
     }
 
     const std::streamsize size = file.tellg();
     if (size <= 0 || static_cast<std::size_t>(size) > kMaxRomSize) {
-        std::fprintf(stderr, "Bus::LoadRom: '%s' has invalid size %lld\n",
+        std::fprintf(stderr, "Bus::LoadRom: '%s' has invalid size %lld\\n",
                      path.c_str(), static_cast<long long>(size));
         return false;
     }
@@ -26,20 +30,20 @@ bool Bus::LoadRom(const std::string& path) {
     rom_.resize(static_cast<std::size_t>(size));
     file.seekg(0, std::ios::beg);
     if (!file.read(reinterpret_cast<char*>(rom_.data()), size)) {
-        std::fprintf(stderr, "Bus::LoadRom: read failed for '%s'\n", path.c_str());
+        std::fprintf(stderr, "Bus::LoadRom: read failed for '%s'\\n", path.c_str());
         rom_.clear();
         return false;
     }
 
     // Print debug info about the ROM header
     if (rom_.size() >= 0xC0) {
-        std::fprintf(stderr, "Bus::LoadRom: ROM loaded, size=%zu bytes\n", rom_.size());
-        std::fprintf(stderr, "  Entry point: 0x%08X\n",
+        std::fprintf(stderr, "Bus::LoadRom: ROM loaded, size=%zu bytes\\n", rom_.size());
+        std::fprintf(stderr, "  Entry point: 0x%08X\\n",
                      *reinterpret_cast<u32*>(&rom_[0x1C]));
-        std::fprintf(stderr, "  First 4 instructions (at 0x08000000):\n");
+        std::fprintf(stderr, "  First 4 instructions (at 0x08000000):\\n");
         for (int i = 0; i < 4; ++i) {
             u32 instr = *reinterpret_cast<u32*>(&rom_[i*4]);
-            std::fprintf(stderr, "    0x%08X: 0x%08X\n", 0x08000000 + i*4, instr);
+            std::fprintf(stderr, "    0x%08X: 0x%08X\\n", 0x08000000 + i*4, instr);
         }
     }
 
@@ -86,7 +90,14 @@ u32 Bus::Read32(u32 address) const {
 void Bus::Write8(u32 address, u8 value) {
     // I/O range: 0x04000000-0x04003FF
     if (address >= 0x04000000 && address < 0x0400400) {
-        std::fprintf(stderr, "Bus: Write8 to 0x%08X = 0x%02X\n", address, value);
+        std::fprintf(stderr, "Bus: Write8 to 0x%08X = 0x%02X\\n", address, value);
+    }
+    // VRAM range: 0x0600'0000-0x0601'FFFF
+    if (address >= 0x06000000 && address < 0x06020000) {
+        if (vram_write_count_ < 5) {
+            std::fprintf(stderr, "Bus: Write8 to VRAM 0x%08X = 0x%02X\\n", address, value);
+        }
+        vram_write_count_++;
     }
     switch (address & 0x0F00'0000) {
         case mem::kEwramBase:
@@ -117,7 +128,14 @@ void Bus::Write16(u32 address, u16 value) {
     address &= ~0x1u;
     // I/O range: 0x04000000-0x04003FF
     if (address >= 0x04000000 && address < 0x0400400) {
-        std::fprintf(stderr, "Bus: Write16 to 0x%08X = 0x%04X\n", address, value);
+        std::fprintf(stderr, "Bus: Write16 to 0x%08X = 0x%04X\\n", address, value);
+    }
+    // VRAM range
+    if (address >= 0x06000000 && address < 0x06020000) {
+        if (vram_write_count_ < 5) {
+            std::fprintf(stderr, "Bus: Write16 to VRAM 0x%08X = 0x%04X\\n", address, value);
+        }
+        vram_write_count_++;
     }
     Write8(address, static_cast<u8>(value & 0xFF));
     Write8(address + 1, static_cast<u8>((value >> 8) & 0xFF));
@@ -127,7 +145,14 @@ void Bus::Write32(u32 address, u32 value) {
     address &= ~0x3u;
     // I/O range: 0x04000000-0x04003FF
     if (address >= 0x04000000 && address < 0x0400400) {
-        std::fprintf(stderr, "Bus: Write32 to 0x%08X = 0x%08X\n", address, value);
+        std::fprintf(stderr, "Bus: Write32 to 0x%08X = 0x%08X\\n", address, value);
+    }
+    // VRAM range
+    if (address >= 0x06000000 && address < 0x06020000) {
+        if (vram_write_count_ < 5) {
+            std::fprintf(stderr, "Bus: Write32 to VRAM 0x%08X = 0x%08X\\n", address, value);
+        }
+        vram_write_count_++;
     }
     Write16(address, static_cast<u16>(value & 0xFFFF));
     Write16(address + 2, static_cast<u16>((value >> 16) & 0xFFFF));
