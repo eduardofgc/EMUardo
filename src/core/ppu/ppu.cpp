@@ -25,6 +25,26 @@ u32 Bgr555ToRgba8888(u16 color) {
     // a native u32 value.
     return 0xFF00'0000u | (b8 << 16) | (g8 << 8) | r8;
 }
+
+// BGxX/BGxY reference-point registers are 32-bit but only bits 0-27 are
+// meaningful (20.8 fixed point); bits 28-31 must be sign-extended from
+// bit 27 rather than read as part of the magnitude. GBATEK "BG
+// Rotation/Scaling Parameters".
+s32 SignExtend28(u32 value) {
+    value &= 0x0FFF'FFFFu;
+    if (value & 0x0800'0000u) {
+        value |= 0xF000'0000u;
+    }
+    return static_cast<s32>(value);
+}
+
+// Wraparound for affine backgrounds with the overflow bit set - C++'s %
+// can return a negative result for a negative dividend, which isn't a
+// valid array index.
+s32 FloorMod(s32 value, s32 modulus) {
+    const s32 result = value % modulus;
+    return (result < 0) ? result + modulus : result;
+}
 } // namespace
 
 Ppu::Ppu(Bus& bus) : bus_(bus) {
@@ -47,18 +67,28 @@ void Ppu::RenderFrame() {
         case 0:
             RenderMode0();
             break;
+        case 1:
+            RenderMode1();
+            break;
+        case 2:
+            RenderMode2();
+            break;
         case 3:
             RenderMode3();
             break;
         case 4:
             RenderMode4();
             break;
+        case 5:
+            RenderMode5();
+            break;
         default: {
-            // Modes 1-2 (affine backgrounds) and 5 (smaller bitmap mode)
-            // aren't implemented yet - fill with the same placeholder
-            // color used before any rendering existed, so "unimplemented
-            // mode" and "nothing rendered yet" look identically obvious
-            // rather than showing stale data from a previous frame.
+            // Mode 6/7 don't exist on real hardware (DISPCNT mode is only
+            // 3 bits, but the two unused encodings are still reachable by
+            // a game writing garbage) - fill with the same placeholder
+            // color used before any rendering existed, so "invalid mode"
+            // and "nothing rendered yet" look identically obvious rather
+            // than showing stale data from a previous frame.
             static bool warned = false;
             if (!warned) {
                 std::fprintf(stderr, "Ppu::RenderFrame: mode %u not implemented yet\n", mode);
@@ -104,6 +134,53 @@ void Ppu::RenderMode4() {
     }
 }
 
+void Ppu::RenderMode5() {
+    // Mode 5: BG2 only, 16bpp direct color like Mode 3, double-buffered
+    // like Mode 4, but the bitmap is 160x128 - smaller than the 240x160
+    // screen - and goes through the same affine (rotate/scale) transform
+    // as Modes 1/2 rather than a straight 1:1 blit. GBATEK "BG Mode 5".
+    static constexpr int kBitmapWidth = 160;
+    static constexpr int kBitmapHeight = 128;
+
+    const u16 dispcnt = bus_.Read16(mem::kIoBase + io::kDispcnt);
+    const bool secondFrame = (dispcnt & (1u << 4)) != 0;
+    const u32 frameBase = mem::kVramBase + (secondFrame ? 0xA000u : 0u);
+
+    const u16 control = bus_.Read16(mem::kIoBase + io::kBg2Cnt);
+    const bool wrap = (control & (1u << 13)) != 0;
+
+    const s16 pa = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pa));
+    const s16 pb = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pb));
+    const s16 pc = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pc));
+    const s16 pd = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pd));
+    const s32 x0 = SignExtend28(bus_.Read32(mem::kIoBase + io::kBg2X));
+    const s32 y0 = SignExtend28(bus_.Read32(mem::kIoBase + io::kBg2Y));
+
+    const u32 backdrop = Bgr555ToRgba8888(bus_.Read16(mem::kPaletteBase));
+
+    for (int line = 0; line < kScreenHeight; ++line) {
+        const s32 refX = x0 + line * pb;
+        const s32 refY = y0 + line * pd;
+
+        for (int x = 0; x < kScreenWidth; ++x) {
+            s32 srcX = (refX + x * pa) >> 8;
+            s32 srcY = (refY + x * pc) >> 8;
+
+            if (wrap) {
+                srcX = FloorMod(srcX, kBitmapWidth);
+                srcY = FloorMod(srcY, kBitmapHeight);
+            } else if (srcX < 0 || srcX >= kBitmapWidth || srcY < 0 || srcY >= kBitmapHeight) {
+                framebuffer_[static_cast<std::size_t>(line * kScreenWidth + x)] = backdrop;
+                continue;
+            }
+
+            const u32 pixelAddr = frameBase + static_cast<u32>(srcY * kBitmapWidth + srcX) * 2u;
+            framebuffer_[static_cast<std::size_t>(line * kScreenWidth + x)] =
+                Bgr555ToRgba8888(bus_.Read16(pixelAddr));
+        }
+    }
+}
+
 void Ppu::RenderMode0() {
     const u16 dispcnt = bus_.Read16(mem::kIoBase + io::kDispcnt);
 
@@ -119,6 +196,66 @@ void Ppu::RenderMode0() {
             RenderTextBackground(i);
         } else {
             bgPriority[i] = 0;
+        }
+    }
+
+    const bool objEnabled = (dispcnt & (1u << 12)) != 0;
+    if (objEnabled) {
+        RenderSprites();
+    }
+
+    CompositeLayers(bgEnabled, bgPriority, objEnabled);
+}
+
+void Ppu::RenderMode1() {
+    // BG0/BG1 regular, BG2 affine, BG3 doesn't exist in this mode - forced
+    // off regardless of its DISPCNT enable bit so a game leaving stale
+    // garbage there can't make BG3 "work" by accident.
+    const u16 dispcnt = bus_.Read16(mem::kIoBase + io::kDispcnt);
+
+    bool bgEnabled[4] = {false, false, false, false};
+    u8 bgPriority[4] = {0, 0, 0, 0};
+    static constexpr u32 kBgCntOffset[4] = {io::kBg0Cnt, io::kBg1Cnt, io::kBg2Cnt, io::kBg3Cnt};
+
+    for (int i = 0; i < 2; ++i) {
+        bgEnabled[i] = (dispcnt & (1u << (8 + i))) != 0;
+        if (bgEnabled[i]) {
+            const u16 control = bus_.Read16(mem::kIoBase + kBgCntOffset[static_cast<std::size_t>(i)]);
+            bgPriority[i] = static_cast<u8>(control & 0x3u);
+            RenderTextBackground(i);
+        }
+    }
+
+    bgEnabled[2] = (dispcnt & (1u << 10)) != 0;
+    if (bgEnabled[2]) {
+        const u16 control = bus_.Read16(mem::kIoBase + io::kBg2Cnt);
+        bgPriority[2] = static_cast<u8>(control & 0x3u);
+        RenderAffineBackground(2);
+    }
+
+    const bool objEnabled = (dispcnt & (1u << 12)) != 0;
+    if (objEnabled) {
+        RenderSprites();
+    }
+
+    CompositeLayers(bgEnabled, bgPriority, objEnabled);
+}
+
+void Ppu::RenderMode2() {
+    // BG2 and BG3 both affine, BG0/BG1 don't exist in this mode.
+    const u16 dispcnt = bus_.Read16(mem::kIoBase + io::kDispcnt);
+
+    bool bgEnabled[4] = {false, false, false, false};
+    u8 bgPriority[4] = {0, 0, 0, 0};
+    static constexpr u32 kBgCntOffset[2] = {io::kBg2Cnt, io::kBg3Cnt};
+
+    for (int i = 0; i < 2; ++i) {
+        const int bgIndex = 2 + i;
+        bgEnabled[bgIndex] = (dispcnt & (1u << (8 + bgIndex))) != 0;
+        if (bgEnabled[bgIndex]) {
+            const u16 control = bus_.Read16(mem::kIoBase + kBgCntOffset[static_cast<std::size_t>(i)]);
+            bgPriority[bgIndex] = static_cast<u8>(control & 0x3u);
+            RenderAffineBackground(bgIndex);
         }
     }
 
@@ -215,6 +352,89 @@ void Ppu::RenderTextBackground(int bgIndex) {
     }
 }
 
+void Ppu::RenderAffineBackground(int bgIndex) {
+    // BG2 and BG3 share this exact register layout, just at different I/O
+    // offsets - GBATEK "BG Rotation/Scaling Parameters".
+    const bool isBg2 = (bgIndex == 2);
+    const u32 cntOffset = isBg2 ? io::kBg2Cnt : io::kBg3Cnt;
+    const u32 paOffset  = isBg2 ? io::kBg2Pa  : io::kBg3Pa;
+    const u32 pbOffset  = isBg2 ? io::kBg2Pb  : io::kBg3Pb;
+    const u32 pcOffset  = isBg2 ? io::kBg2Pc  : io::kBg3Pc;
+    const u32 pdOffset  = isBg2 ? io::kBg2Pd  : io::kBg3Pd;
+    const u32 xOffset   = isBg2 ? io::kBg2X   : io::kBg3X;
+    const u32 yOffset   = isBg2 ? io::kBg2Y   : io::kBg3Y;
+
+    const u16 control = bus_.Read16(mem::kIoBase + cntOffset);
+    const u32 charBase   = ((control >> 2) & 0x3u) * 0x4000u;
+    const u32 screenBase = ((control >> 8) & 0x1Fu) * 0x800u;
+    const bool wrap = (control & (1u << 13)) != 0;
+
+    // Affine BG screen size (GBATEK "BG Screen Size (Rotation/Scaling)")
+    // is always a single square block, unlike text mode's 32x32 sub-block
+    // layout - 16, 32, 64 or 128 tiles per side.
+    static constexpr u32 kSizeTiles[4] = {16, 32, 64, 128};
+    const u32 sizeTiles = kSizeTiles[(control >> 14) & 0x3u];
+    const s32 sizePixels = static_cast<s32>(sizeTiles) * 8;
+
+    const s16 pa = static_cast<s16>(bus_.Read16(mem::kIoBase + paOffset));
+    const s16 pb = static_cast<s16>(bus_.Read16(mem::kIoBase + pbOffset));
+    const s16 pc = static_cast<s16>(bus_.Read16(mem::kIoBase + pcOffset));
+    const s16 pd = static_cast<s16>(bus_.Read16(mem::kIoBase + pdOffset));
+    const s32 x0 = SignExtend28(bus_.Read32(mem::kIoBase + xOffset));
+    const s32 y0 = SignExtend28(bus_.Read32(mem::kIoBase + yOffset));
+
+    auto& layer = bgLayer_[bgIndex];
+
+    for (int line = 0; line < kScreenHeight; ++line) {
+        // The reference point advances by PB/PD once per scanline on real
+        // hardware (its own internal accumulator, distinct from BGxX/Y
+        // which only reload it at VBlank or on a fresh write) - modeled
+        // here by re-deriving it from the frame-start value, since
+        // RenderFrame() draws a whole frame at once rather than scanline
+        // by scanline (see the Step() TODO in ppu.h).
+        const s32 refX = x0 + line * pb;
+        const s32 refY = y0 + line * pd;
+
+        for (int x = 0; x < kScreenWidth; ++x) {
+            s32 srcX = (refX + x * pa) >> 8;
+            s32 srcY = (refY + x * pc) >> 8;
+
+            const std::size_t pixelIndex = static_cast<std::size_t>(line * kScreenWidth + x);
+
+            if (wrap) {
+                srcX = FloorMod(srcX, sizePixels);
+                srcY = FloorMod(srcY, sizePixels);
+            } else if (srcX < 0 || srcX >= sizePixels || srcY < 0 || srcY >= sizePixels) {
+                layer[pixelIndex].opaque = false;
+                continue;
+            }
+
+            const u32 tileCol = static_cast<u32>(srcX) / 8u;
+            const u32 tileRow = static_cast<u32>(srcY) / 8u;
+            const u32 pixelCol = static_cast<u32>(srcX) % 8u;
+            const u32 pixelRow = static_cast<u32>(srcY) % 8u;
+
+            // 1 byte per tilemap entry (just a tile number, 0-255) - no
+            // flip or palette-select bits like text mode has.
+            const u32 tilemapAddr = mem::kVramBase + screenBase + tileRow * sizeTiles + tileCol;
+            const u8 tileNumber = bus_.Read8(tilemapAddr);
+
+            // Affine backgrounds are always 8bpp (256-color, single
+            // palette bank).
+            const u32 tileDataAddr = mem::kVramBase + charBase + static_cast<u32>(tileNumber) * 64u;
+            const u8 colorIndex = bus_.Read8(tileDataAddr + pixelRow * 8u + pixelCol);
+
+            if (colorIndex == 0) {
+                layer[pixelIndex].opaque = false;
+            } else {
+                layer[pixelIndex].opaque = true;
+                const u32 paletteAddr = mem::kPaletteBase + static_cast<u32>(colorIndex) * 2u;
+                layer[pixelIndex].color = Bgr555ToRgba8888(bus_.Read16(paletteAddr));
+            }
+        }
+    }
+}
+
 void Ppu::RenderSprites() {
     for (auto& pixel : objLayer_) {
         pixel.opaque = false;
@@ -222,6 +442,13 @@ void Ppu::RenderSprites() {
 
     const u16 dispcnt = bus_.Read16(mem::kIoBase + io::kDispcnt);
     const bool mapping1D = (dispcnt & (1u << 6)) != 0;
+
+    // In bitmap modes (3-5) the lower half of OBJ VRAM is occupied by the
+    // BG2 bitmap, so the OBJ character area starts 0x4000 bytes later than
+    // in tile modes (0-2) and only tile numbers 512-1023 are usable.
+    // GBATEK "VRAM - Object Character Data".
+    const u32 mode = dispcnt & 0x7u;
+    const u32 objBase = mem::kVramBase + ((mode >= 3) ? 0x1'4000u : 0x1'0000u);
 
     // Shape+size (GBATEK "OBJ Size") -> pixel dimensions.
     static constexpr int kWidthTable[4][4]  = {{8, 16, 32, 64}, {16, 32, 32, 64}, {8, 8, 16, 32}, {0, 0, 0, 0}};
@@ -237,11 +464,6 @@ void Ppu::RenderSprites() {
         if (!affine && (attr0 & (1u << 9)) != 0) {
             continue; // disabled (only meaningful when affine flag is clear)
         }
-        if (affine) {
-            // TODO: affine (rotation/scaling) sprites aren't implemented -
-            // skipping rather than drawing them in the wrong place/shape.
-            continue;
-        }
 
         const u32 shape = (attr0 >> 14) & 0x3u;
         const u32 size = (attr1 >> 14) & 0x3u;
@@ -256,59 +478,118 @@ void Ppu::RenderSprites() {
         int screenX = attr1 & 0x1FFu;
         if (screenX >= 240) screenX -= 512; // 9-bit coordinate, wraps for off-left placement
 
-        const bool hFlip = (attr1 & (1u << 12)) != 0;
-        const bool vFlip = (attr1 & (1u << 13)) != 0;
         const bool colorMode8bpp = (attr0 & (1u << 13)) != 0;
         const u32 baseTileNumber = attr2 & 0x3FFu;
         const u32 priority = (attr2 >> 10) & 0x3u;
         const u32 paletteNum = (attr2 >> 12) & 0xFu;
-
         const u32 widthTiles = static_cast<u32>(width) / 8u;
-        const u32 objBase = mem::kVramBase + 0x1'0000u; // OBJ character area starts at 0x06010000 in modes 0-2
 
-        for (int localY = 0; localY < height; ++localY) {
-            const int py = screenY + localY;
+        // Samples the sprite's own tile data at texture coordinates
+        // (texX, texY) - both already guaranteed in [0,width)/[0,height) -
+        // and, if opaque, composites it at screen position (px, py) with
+        // this sprite's priority. Shared by the regular and affine paths
+        // below; only how (texX, texY) and (px, py) are derived differs
+        // between them.
+        auto plotPixel = [&](int texX, int texY, int px, int py) {
+            if (px < 0 || px >= kScreenWidth || py < 0 || py >= kScreenHeight) {
+                return;
+            }
+            const u32 tileCol = static_cast<u32>(texX) / 8u;
+            const u32 tileRow = static_cast<u32>(texY) / 8u;
+            const u32 pixelCol = static_cast<u32>(texX) % 8u;
+            const u32 pixelRow = static_cast<u32>(texY) % 8u;
+
+            const u32 rowStride = mapping1D ? (widthTiles * (colorMode8bpp ? 2u : 1u)) : 32u;
+            const u32 tileOffset = tileRow * rowStride + tileCol * (colorMode8bpp ? 2u : 1u);
+            const u32 tileDataAddr = objBase + (baseTileNumber + tileOffset) * 32u;
+
+            u32 colorIndex;
+            u32 paletteAddr;
+            if (colorMode8bpp) {
+                colorIndex = bus_.Read8(tileDataAddr + pixelRow * 8u + pixelCol);
+                paletteAddr = mem::kPaletteBase + 0x200u + colorIndex * 2u;
+            } else {
+                const u32 byteOffset = (pixelRow * 8u + pixelCol) / 2u;
+                const u8 byteVal = bus_.Read8(tileDataAddr + byteOffset);
+                colorIndex = ((pixelCol % 2u) == 0u) ? (byteVal & 0xFu) : (byteVal >> 4);
+                paletteAddr = mem::kPaletteBase + 0x200u + (paletteNum * 16u + colorIndex) * 2u;
+            }
+
+            if (colorIndex == 0) {
+                return; // transparent
+            }
+
+            const std::size_t pixelIndex = static_cast<std::size_t>(py * kScreenWidth + px);
+            const u8 existingPriority = objPriority_[pixelIndex];
+            if (objLayer_[pixelIndex].opaque && priority > existingPriority) {
+                return; // an already-drawn, higher-priority sprite wins - see RenderSprites' header comment
+            }
+            objLayer_[pixelIndex].opaque = true;
+            objLayer_[pixelIndex].color = Bgr555ToRgba8888(bus_.Read16(paletteAddr));
+            objPriority_[pixelIndex] = static_cast<u8>(priority);
+        };
+
+        if (!affine) {
+            const bool hFlip = (attr1 & (1u << 12)) != 0;
+            const bool vFlip = (attr1 & (1u << 13)) != 0;
+
+            for (int localY = 0; localY < height; ++localY) {
+                const int py = screenY + localY;
+                if (py < 0 || py >= kScreenHeight) continue;
+
+                const int texY = vFlip ? (height - 1 - localY) : localY;
+                for (int localX = 0; localX < width; ++localX) {
+                    const int texX = hFlip ? (width - 1 - localX) : localX;
+                    plotPixel(texX, texY, screenX + localX, py);
+                }
+            }
+            continue;
+        }
+
+        // Affine (rotate/scale) sprite. GBATEK "OBJ Rotation/Scaling":
+        // attr1 bits9-13 select one of 32 parameter groups, each stored
+        // across four consecutive OAM entries' attr3 fields (an OAM slot
+        // this sprite doesn't otherwise use, since attr3 has no meaning
+        // for the sprite's own attributes).
+        const u32 paramGroup = (attr1 >> 9) & 0x1Fu;
+        const u32 paramBase = paramGroup * 4u;
+        const s16 pa = static_cast<s16>(bus_.Read16(mem::kOamBase + (paramBase + 0u) * 8u + 6u));
+        const s16 pb = static_cast<s16>(bus_.Read16(mem::kOamBase + (paramBase + 1u) * 8u + 6u));
+        const s16 pc = static_cast<s16>(bus_.Read16(mem::kOamBase + (paramBase + 2u) * 8u + 6u));
+        const s16 pd = static_cast<s16>(bus_.Read16(mem::kOamBase + (paramBase + 3u) * 8u + 6u));
+
+        // Double-size (attr0 bit9, only meaningful when affine): doubles
+        // the on-screen bounding box the sprite is scanned over (so a
+        // rotated/scaled sprite has room to grow into) without changing
+        // its actual texture dimensions.
+        const bool doubleSize = (attr0 & (1u << 9)) != 0;
+        const int boundWidth = doubleSize ? width * 2 : width;
+        const int boundHeight = doubleSize ? height * 2 : height;
+        const int boundHalfW = boundWidth / 2;
+        const int boundHalfH = boundHeight / 2;
+        const int texHalfW = width / 2;
+        const int texHalfH = height / 2;
+
+        for (int dy = 0; dy < boundHeight; ++dy) {
+            const int py = screenY + dy;
             if (py < 0 || py >= kScreenHeight) continue;
+            const int ry = dy - boundHalfH;
 
-            for (int localX = 0; localX < width; ++localX) {
-                const int px = screenX + localX;
+            for (int dx = 0; dx < boundWidth; ++dx) {
+                const int px = screenX + dx;
                 if (px < 0 || px >= kScreenWidth) continue;
+                const int rx = dx - boundHalfW;
 
-                const int srcX = hFlip ? (width - 1 - localX) : localX;
-                const int srcY = vFlip ? (height - 1 - localY) : localY;
-                const u32 tileCol = static_cast<u32>(srcX) / 8u;
-                const u32 tileRow = static_cast<u32>(srcY) / 8u;
-                const u32 pixelCol = static_cast<u32>(srcX) % 8u;
-                const u32 pixelRow = static_cast<u32>(srcY) % 8u;
-
-                const u32 rowStride = mapping1D ? (widthTiles * (colorMode8bpp ? 2u : 1u)) : 32u;
-                const u32 tileOffset = tileRow * rowStride + tileCol * (colorMode8bpp ? 2u : 1u);
-                const u32 tileDataAddr = objBase + (baseTileNumber + tileOffset) * 32u;
-
-                u32 colorIndex;
-                u32 paletteAddr;
-                if (colorMode8bpp) {
-                    colorIndex = bus_.Read8(tileDataAddr + pixelRow * 8u + pixelCol);
-                    paletteAddr = mem::kPaletteBase + 0x200u + colorIndex * 2u;
-                } else {
-                    const u32 byteOffset = (pixelRow * 8u + pixelCol) / 2u;
-                    const u8 byteVal = bus_.Read8(tileDataAddr + byteOffset);
-                    colorIndex = ((pixelCol % 2u) == 0u) ? (byteVal & 0xFu) : (byteVal >> 4);
-                    paletteAddr = mem::kPaletteBase + 0x200u + (paletteNum * 16u + colorIndex) * 2u;
+                // Inverse-map this screen pixel back into the sprite's own
+                // texture space through the rotation/scaling matrix -
+                // pixels that land outside the sprite's actual tile data
+                // are simply not drawn (no wraparound for OBJs).
+                const int texX = ((pa * rx + pb * ry) >> 8) + texHalfW;
+                const int texY = ((pc * rx + pd * ry) >> 8) + texHalfH;
+                if (texX < 0 || texX >= width || texY < 0 || texY >= height) {
+                    continue;
                 }
-
-                if (colorIndex == 0) {
-                    continue; // transparent
-                }
-
-                const std::size_t pixelIndex = static_cast<std::size_t>(py * kScreenWidth + px);
-                const u8 existingPriority = objPriority_[pixelIndex];
-                if (objLayer_[pixelIndex].opaque && priority > existingPriority) {
-                    continue; // an already-drawn, higher-priority sprite wins - see RenderSprites' header comment
-                }
-                objLayer_[pixelIndex].opaque = true;
-                objLayer_[pixelIndex].color = Bgr555ToRgba8888(bus_.Read16(paletteAddr));
-                objPriority_[pixelIndex] = static_cast<u8>(priority);
+                plotPixel(texX, texY, px, py);
             }
         }
     }

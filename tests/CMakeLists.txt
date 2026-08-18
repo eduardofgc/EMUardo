@@ -54,3 +54,9 @@ add_executable(gba_tests_ppu_mode4
 )
 target_link_libraries(gba_tests_ppu_mode4 PRIVATE gba_core)
 add_test(NAME ppu_mode4_test COMMAND gba_tests_ppu_mode4)
+
+add_executable(gba_tests_ppu_affine
+    test_ppu_affine.cpp
+)
+target_link_libraries(gba_tests_ppu_affine PRIVATE gba_core)
+add_test(NAME ppu_affine_test COMMAND gba_tests_ppu_affine)

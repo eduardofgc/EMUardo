@@ -41,6 +41,18 @@ namespace io {
     constexpr u32 kBg2HOfs = 0x018; constexpr u32 kBg2VOfs = 0x01A;
     constexpr u32 kBg3HOfs = 0x01C; constexpr u32 kBg3VOfs = 0x01E;
 
+    // Rotation/scaling parameters for the affine backgrounds (BG2 in modes
+    // 1/2/5, BG3 in mode 2 only). PA-PD are signed 8.8 fixed-point; X/Y are
+    // the 32-bit (28-bit signed, sign-extend from bit27) reference point,
+    // each split into an _L/_H halfword pair 4 bytes apart. GBATEK
+    // "BG Rotation/Scaling Parameters".
+    constexpr u32 kBg2Pa = 0x020; constexpr u32 kBg2Pb = 0x022;
+    constexpr u32 kBg2Pc = 0x024; constexpr u32 kBg2Pd = 0x026;
+    constexpr u32 kBg2X  = 0x028; constexpr u32 kBg2Y  = 0x02C;
+    constexpr u32 kBg3Pa = 0x030; constexpr u32 kBg3Pb = 0x032;
+    constexpr u32 kBg3Pc = 0x034; constexpr u32 kBg3Pd = 0x036;
+    constexpr u32 kBg3X  = 0x038; constexpr u32 kBg3Y  = 0x03C;
+
     constexpr u32 kKeyInput = 0x130; // Key status - active LOW (0=pressed, 1=released)
     constexpr u32 kKeyCnt   = 0x132; // Key interrupt control
 

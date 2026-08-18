@@ -73,21 +73,44 @@ private:
     // of commercial GBA games actually use. GBATEK "Text BG" / "OBJs".
     void RenderMode0();
 
+    // Mode 1: BG0/BG1 regular (text) as in Mode 0, BG2 affine (rotate/
+    // scale), BG3 doesn't exist in this mode. GBATEK "BG Modes".
+    void RenderMode1();
+
+    // Mode 2: BG0/BG1 don't exist in this mode, BG2 and BG3 are both
+    // affine. Used by games that need two independently-rotating tiled
+    // layers (e.g. a rotating floor plus a separate rotating backdrop).
+    void RenderMode2();
+
+    // Mode 5: like Mode 4 (paletted... actually 16bpp here, double-
+    // buffered via DISPCNT bit4), but the bitmap is only 160x128 - smaller
+    // than the screen - and, being BG2, goes through the same affine
+    // transform as Modes 1/2 rather than being blitted 1:1 like Mode 3/4.
+    // GBATEK "BG Mode 5 - Rot/Scale Bitmap".
+    void RenderMode5();
+
     // Fills bgLayer_[bgIndex] with one background's pixels for this frame,
     // honoring its control register (tile/screen base, size, color depth)
     // and HOFS/VOFS scroll registers. Transparent pixels (color index 0)
     // are left with opaque=false so the compositor can see through them.
     void RenderTextBackground(int bgIndex);
 
-    // Fills objLayer_/objPriority_ from OAM - all 128 sprites, regular
-    // (non-affine) only for now. Processes OAM back-to-front (index 127
-    // down to 0) so that, per GBATEK, lower OAM index wins ties at equal
-    // priority.
+    // Fills bgLayer_[bgIndex] for an affine (rotate/scale) background -
+    // BG2 in modes 1/2/5, BG3 in mode 2. Unlike text-mode backgrounds,
+    // affine backgrounds are always 8bpp, use a single square screen
+    // (16x16 to 128x128 tiles, no sub-block layout), 1-byte-per-entry
+    // tilemaps (tile number only - no flip/palette bits), and are sampled
+    // through the BGxPA-PD/BGxX/BGxY rotation/scaling registers rather
+    // than HOFS/VOFS. GBATEK "BG Rotation/Scaling".
+    void RenderAffineBackground(int bgIndex);
+
+    // Fills objLayer_/objPriority_ from OAM - all 128 sprites, both
+    // regular and affine (rotate/scale). Processes OAM back-to-front
+    // (index 127 down to 0) so that, per GBATEK, lower OAM index wins ties
+    // at equal priority.
     //
-    // TODO: affine (rotation/scaling) sprites, OBJ window mode,
-    // semi-transparent OBJ mode, mosaic - all currently ignored; affine
-    // sprites are skipped entirely (treated as not rendered) rather than
-    // drawn wrong.
+    // TODO: OBJ window mode, semi-transparent OBJ mode, mosaic - still
+    // ignored.
     void RenderSprites();
 
     // Combines up to 4 BG layers (using each BG's configured priority,
@@ -96,8 +119,10 @@ private:
     // fall back to the backdrop color (palette entry 0).
     void CompositeLayers(const bool bgEnabled[4], const u8 bgPriority[4], bool objEnabled);
 
-    // TODO: Mode 5 (smaller 16-bit bitmap, double-buffered), Modes 1-2
-    // (affine backgrounds), per-scanline timing (see Step()'s TODO).
+    // TODO: per-scanline timing (see Step()'s TODO) - affine reference
+    // points are currently re-read once per frame and extrapolated by
+    // line number, so mid-frame writes to BGxX/Y (a common raster-effect
+    // trick) won't take effect until the next frame.
 };
 
 } // namespace gba
