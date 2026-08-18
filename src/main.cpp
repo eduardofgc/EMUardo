@@ -55,8 +55,26 @@ int main(int argc, char** argv) {
             if (event.type == SDL_QUIT) {
                 running = false;
             }
-            // TODO: map SDL_KEYDOWN/KEYUP to GBA KEYINPUT bits.
         }
+
+        // Polled per-frame keyboard state rather than tracking individual
+        // KEYDOWN/KEYUP events - simpler, and correct for a system with no
+        // sub-frame input timing to begin with. Standard-ish mapping:
+        // Z/X for A/B, Enter for Start, Right Shift for Select, arrow keys
+        // for the D-pad, A/S for L/R shoulder buttons.
+        const Uint8* keys = SDL_GetKeyboardState(nullptr);
+        gba::u16 pressedMask = 0;
+        if (keys[SDL_SCANCODE_Z])      pressedMask |= gba::key::kA;
+        if (keys[SDL_SCANCODE_X])      pressedMask |= gba::key::kB;
+        if (keys[SDL_SCANCODE_RETURN]) pressedMask |= gba::key::kStart;
+        if (keys[SDL_SCANCODE_RSHIFT]) pressedMask |= gba::key::kSelect;
+        if (keys[SDL_SCANCODE_RIGHT])  pressedMask |= gba::key::kRight;
+        if (keys[SDL_SCANCODE_LEFT])   pressedMask |= gba::key::kLeft;
+        if (keys[SDL_SCANCODE_UP])     pressedMask |= gba::key::kUp;
+        if (keys[SDL_SCANCODE_DOWN])   pressedMask |= gba::key::kDown;
+        if (keys[SDL_SCANCODE_A])      pressedMask |= gba::key::kL;
+        if (keys[SDL_SCANCODE_S])      pressedMask |= gba::key::kR;
+        emulator.SetKeyState(pressedMask);
 
         emulator.RunFrame();
 

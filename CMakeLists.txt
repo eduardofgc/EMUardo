@@ -49,6 +49,17 @@ find_package(SDL2 REQUIRED)
 # ---------------------------------------------------------------------------
 add_library(gba_core
     src/core/cpu/cpu.cpp
+    src/core/cpu/arm_data_processing.cpp
+    src/core/cpu/arm_multiply.cpp
+    src/core/cpu/arm_transfer.cpp
+    src/core/cpu/arm_branch.cpp
+    src/core/cpu/arm_psr.cpp
+    src/core/cpu/thumb_alu.cpp
+    src/core/cpu/thumb_transfer.cpp
+    src/core/cpu/thumb_branch.cpp
+    src/core/cpu/hle_bios.cpp
+    src/core/io/timers.cpp
+    src/core/io/dma.cpp
     src/core/memory/bus.cpp
     src/core/ppu/ppu.cpp
     src/core/emulator.cpp
