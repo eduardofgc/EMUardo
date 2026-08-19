@@ -62,20 +62,30 @@ void Dma::OnFifoRequest(u32 fifoAddress) {
         const bool enabled = (control & (1u << 15)) != 0;
         const u32 timing = (control >> 12) & 0x3u;
         if (!enabled || timing != 3) {
+            // Not currently armed for sound - forget any tracked position,
+            // so a later re-arm re-latches a fresh start address from
+            // whatever the game writes to SAD rather than resuming an
+            // unrelated old run.
+            specialArmed_[channel] = false;
             continue;
         }
         if (bus_.Read32(DadAddress(channel)) != fifoAddress) {
-            continue;
+            continue; // armed, but for the other FIFO - leave its state alone
         }
 
-        u32 src = bus_.Read32(SadAddress(channel));
+        if (!specialArmed_[channel]) {
+            specialSrc_[channel] = bus_.Read32(SadAddress(channel));
+            specialArmed_[channel] = true;
+        }
+
+        u32 src = specialSrc_[channel];
         for (int i = 0; i < 4; ++i) {
             bus_.Write32(fifoAddress, bus_.Read32(src));
             src += 4u;
         }
-        // Source keeps advancing across repeated refills; destination and
-        // the enable bit are left alone - see the declaration's comment.
-        bus_.Write32(SadAddress(channel), src);
+        specialSrc_[channel] = src;
+        // SAD/DAD/CNT_L are intentionally never written back here - see
+        // the declaration's comment on specialSrc_/specialArmed_ for why.
     }
 }
 

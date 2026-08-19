@@ -8,6 +8,17 @@
 
 namespace {
 constexpr int kWindowScale = 3;
+
+// The real GBA runs at 16777216Hz / 280896 cycles-per-frame = ~59.7275fps,
+// not 60. SDL_RENDERER_PRESENTVSYNC alone paces RunFrame()'s cadence to
+// whatever the display/driver actually delivers (a flat 60Hz monitor is
+// already a 0.4% speed/pitch error; an uncapped or adaptive-sync display -
+// this exact build measured ~131fps uncapped earlier - makes it much worse).
+// Since Apu::GenerateSample() produces a fixed amount of audio per
+// RunFrame() call, that mismatch directly speeds up and chops the audio
+// output. Pace explicitly to the true GBA frame rate here instead of
+// trusting vsync to get it right.
+constexpr double kGbaFps = 16777216.0 / 280896.0;
 }
 
 int main(int argc, char** argv) {
@@ -46,8 +57,12 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // No SDL_RENDERER_PRESENTVSYNC here - frame pacing is handled explicitly
+    // below against the real GBA frame rate instead, so playback speed
+    // (and therefore audio pitch) doesn't depend on the display's refresh
+    // rate or on vsync actually being honored.
     SDL_Renderer* renderer = SDL_CreateRenderer(
-        window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        window, -1, SDL_RENDERER_ACCELERATED);
 
     SDL_Texture* texture = SDL_CreateTexture(
         renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING,
@@ -67,6 +82,11 @@ int main(int argc, char** argv) {
 
     bool running = true;
     SDL_Event event;
+
+    const Uint64 perfFrequency = SDL_GetPerformanceFrequency();
+    const Uint64 targetFrameTicks =
+        static_cast<Uint64>(static_cast<double>(perfFrequency) / kGbaFps);
+    Uint64 nextFrameDeadline = SDL_GetPerformanceCounter() + targetFrameTicks;
 
     while (running) {
         while (SDL_PollEvent(&event)) {
@@ -118,6 +138,29 @@ int main(int argc, char** argv) {
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
+
+        // Sleep off whatever's left of this frame's budget. SDL_Delay is
+        // only accurate to ~1ms, so leave a small margin and busy-wait the
+        // remainder for precision - audio glitches are far more sensitive
+        // to timing slop than a spun CPU core for <1ms is costly.
+        Uint64 now = SDL_GetPerformanceCounter();
+        if (now < nextFrameDeadline) {
+            const Uint64 remainingTicks = nextFrameDeadline - now;
+            const double remainingMs =
+                static_cast<double>(remainingTicks) * 1000.0 / static_cast<double>(perfFrequency);
+            if (remainingMs > 1.0) {
+                SDL_Delay(static_cast<Uint32>(remainingMs - 1.0));
+            }
+            while (SDL_GetPerformanceCounter() < nextFrameDeadline) {
+                // busy-wait for the final sub-millisecond
+            }
+            nextFrameDeadline += targetFrameTicks;
+        } else {
+            // Running behind (host hiccup, slow frame, etc.) - resync to
+            // "now" instead of trying to burn through a backlog of frames
+            // back-to-back, which would just fast-forward audio/video.
+            nextFrameDeadline = now + targetFrameTicks;
+        }
     }
 
     emulator.FlushSave();
