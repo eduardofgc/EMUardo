@@ -1,6 +1,6 @@
-# GBA Emulator
+# EMUardo
 
-Um emulador de Game Boy Advance escrito em C++20, construído do zero: um
+Um emulador de Game Boy Advance escrito em C++20. Possui um
 interpretador ARM7TDMI (conjuntos de instruções ARM e Thumb), uma PPU
 cobrindo os seis modos de background além de sprites, emulação de save de
 cartucho (SRAM, Flash, EEPROM) e uma implementação de GPIO/RTC para
@@ -8,11 +8,11 @@ cartuchos que usam esse hardware. Renderizado e controlado via SDL2.
 
 Este projeto não inclui nem exige uma BIOS real da Nintendo. O
 despacho de interrupções e as poucas chamadas de BIOS (`SWI`) das quais
-os jogos realmente dependem são implementados nativamente em C++ ("HLE" -
-high-level emulation) em vez de rodar o firmware proprietário da
-Nintendo. Você é responsável por fornecer suas próprias ROMs (por
-exemplo, homebrew, ou dumps de cartuchos que você possui legalmente) -
-nenhuma ROM está incluída neste repositório.
+os jogos realmente dependem são implementados nativamente em C++ usando 
+HLE em vez de rodar o firmware proprietário da Nintendo. 
+
+NENHUMA ROM ESTÁ INCLUÍDA NESSE REPOSITÓRIO. VOCÊ É RESPONSÁVEL
+POR FAZER O DUMP DE SUAS PRÓPRIAS ROMS.
 
 ## Status
 
@@ -61,15 +61,15 @@ cmake --build build -j
 ```
 
 O tipo de build padrão é `Release` (um build `Debug` sem otimização não
-consegue sustentar a velocidade real do GBA - cerca de 32fps contra os
+consegue sustentar a velocidade real do GBA: cerca de 32fps contra os
 59.7fps necessários, medido contra 131fps para o mesmo código compilado
 em Release). Passe `-DCMAKE_BUILD_TYPE=Debug` explicitamente se precisar
 de um build sem otimização, navegável no gdb.
 
 Outras opções do CMake:
 
-- `GBA_BUILD_TESTS` (padrão `ON`) - compila a suíte de testes
-- `GBA_ENABLE_ASAN` (padrão `OFF`) - AddressSanitizer + UBSan, apenas em
+- `GBA_BUILD_TESTS` (padrão `ON`): compila a suíte de testes
+- `GBA_ENABLE_ASAN` (padrão `OFF`): AddressSanitizer + UBSan, apenas em
   builds Debug
 
 ## Executando
@@ -103,7 +103,7 @@ ctest --test-dir build --output-on-failure
 
 Os testes ligam diretamente com a biblioteca `gba_core` (o mesmo código
 que o emulador real executa) e constroem o estado de CPU/Bus/PPU
-diretamente, em vez de depender de arquivos de ROM de teste - veja os
+diretamente, em vez de depender de arquivos de ROM de teste. Veja os
 arquivos em `tests/` para a convenção usada.
 
 ## Estrutura do projeto
