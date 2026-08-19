@@ -57,35 +57,35 @@ void Dma::OnFifoRequest(u32 fifoAddress) {
     // Nothing hardware-enforces channel 1 = A / 2 = B though - what
     // actually matters is which channel's destination is pointed at this
     // particular FIFO, so check both.
+    //
+    // Confirmed against mGBA (a reference-accurate emulator): each trigger
+    // starts fresh from whatever the CPU currently has written to SAD -
+    // there's no internal position that carries over and advances *across*
+    // separate trigger events (that was our bug: both the original code,
+    // which wrote an advancing pointer back to the visible SAD register,
+    // and an earlier attempted fix that tracked it internally instead,
+    // both assumed persistence that real hardware simply doesn't have).
+    // Within one single trigger's 4-word transfer the source does step by
+    // 4 bytes per word - that part just isn't kept anywhere afterward. The
+    // game is responsible for keeping fresh data at that address (or
+    // explicitly rewriting SAD) between refills.
     for (int channel = 1; channel <= 2; ++channel) {
         const u16 control = bus_.Read16(CntHAddress(channel));
         const bool enabled = (control & (1u << 15)) != 0;
         const u32 timing = (control >> 12) & 0x3u;
         if (!enabled || timing != 3) {
-            // Not currently armed for sound - forget any tracked position,
-            // so a later re-arm re-latches a fresh start address from
-            // whatever the game writes to SAD rather than resuming an
-            // unrelated old run.
-            specialArmed_[channel] = false;
             continue;
         }
         if (bus_.Read32(DadAddress(channel)) != fifoAddress) {
-            continue; // armed, but for the other FIFO - leave its state alone
+            continue; // armed, but for the other FIFO
         }
 
-        if (!specialArmed_[channel]) {
-            specialSrc_[channel] = bus_.Read32(SadAddress(channel));
-            specialArmed_[channel] = true;
-        }
-
-        u32 src = specialSrc_[channel];
+        u32 src = bus_.Read32(SadAddress(channel));
         for (int i = 0; i < 4; ++i) {
             bus_.Write32(fifoAddress, bus_.Read32(src));
             src += 4u;
         }
-        specialSrc_[channel] = src;
-        // SAD/DAD/CNT_L are intentionally never written back here - see
-        // the declaration's comment on specialSrc_/specialArmed_ for why.
+        // SAD is intentionally never written back - see the comment above.
     }
 }
 

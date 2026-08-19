@@ -52,22 +52,6 @@ private:
     // every single cycle it stays set).
     bool armed_[4]{};
 
-    // Special-timing (sound FIFO) source-address tracking for DMA1/DMA2.
-    // GBATEK "DMA Transfer Channels": "The SAD, DAD, and CNT_L registers
-    // are holding the initial start addresses, and initial length. The
-    // hardware does NOT change the content of these registers during or
-    // after the transfer." - i.e. on real hardware, repeated FIFO refills
-    // advance an *internal* source pointer that's invisible to the CPU;
-    // DMAxSAD always reads back whatever the game last wrote there. This
-    // mirrors that split (see Timers' reload_/counter_ for the same kind
-    // of live-vs-visible-register split): specialSrc_ is the real,
-    // advancing read position, latched from DMAxSAD only when a channel
-    // transitions into being armed for special timing, and never written
-    // back to the bus - a game that reads its own DMAxSAD back for buffer
-    // bookkeeping needs to see its original value, not our progress.
-    u32 specialSrc_[4]{};
-    bool specialArmed_[4]{};
-
     static u32 SadAddress(int channel);
     static u32 DadAddress(int channel);
     static u32 CntLAddress(int channel);
