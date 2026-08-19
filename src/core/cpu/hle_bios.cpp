@@ -12,14 +12,16 @@ bool Cpu::TryHleSwi(u32 number) {
         case 0x07: HleDivArm();           return true;
         case 0x0B: HleCpuSet();           return true;
         case 0x0C: HleCpuFastSet();       return true;
+        case 0x11: HleLz77UnComp();       return true; // LZ77UnCompWRAM
+        case 0x12: HleLz77UnComp();       return true; // LZ77UnCompVRAM - see HleLz77UnComp's comment
         default:
-            // Not HLE'd - LZ77/Huffman/RL decompression, Sqrt, ArcTan,
-            // BgAffineSet, ObjAffineSet, sound-related calls, and others
-            // aren't implemented. Falls back to Arm/ThumbSoftwareInterrupt's
-            // real EnterException(Supervisor, 0x08) path, which currently
-            // has no real BIOS code to run there either - the call will
-            // effectively do nothing useful. See the TODO on this
-            // function's declaration in cpu.h.
+            // Not HLE'd - Huffman/RL decompression, Diff8bit/16bitUnFilter,
+            // Sqrt, ArcTan, BgAffineSet, ObjAffineSet, sound-related calls,
+            // and others aren't implemented. Falls back to
+            // Arm/ThumbSoftwareInterrupt's real EnterException(Supervisor,
+            // 0x08) path, which currently has no real BIOS code to run
+            // there either - the call will effectively do nothing useful.
+            // See the TODO on this function's declaration in cpu.h.
             return false;
     }
 }
@@ -122,6 +124,55 @@ void Cpu::HleCpuSet() {
             s += unitSize;
         }
         d += unitSize;
+    }
+}
+
+void Cpu::HleLz77UnComp() {
+    // LZ77UnCompWRAM/LZ77UnCompVRAM (SWI 0x11/0x12) - GBATEK "BIOS
+    // Decompression Functions". Both do the exact same LZ77/LZSS-variant
+    // decompression; the WRAM/VRAM distinction only exists on real
+    // hardware because VRAM can't be written a byte at a time (it has to
+    // buffer pairs and write 16-bit), which doesn't apply to our Bus -
+    // Write8 to VRAM already stores a plain byte, so a single
+    // implementation covers both.
+    //
+    // Header (4 bytes at R0): bits8-31 = decompressed size in bytes,
+    // bits4-7 = compression type (1 = LZ77, not checked - well-formed ROM
+    // data is assumed). Then a stream of 8-unit blocks: one flag byte
+    // (MSB first) says whether each of the next 8 units is a raw byte
+    // (flag bit clear) or a back-reference (flag bit set, 2 bytes:
+    // length = high nibble of byte0 + 3, disp = (low nibble of byte0 << 8
+    // | byte1) + 1) copying `length` bytes from `disp` bytes behind the
+    // current output position, one byte at a time so overlapping copies
+    // (runs shorter than the displacement) work correctly.
+    const u32 srcAddr = GetRegister(0);
+    const u32 dstAddr = GetRegister(1);
+
+    const u32 header = bus_.Read32(srcAddr);
+    const u32 decompressedSize = header >> 8;
+
+    u32 src = srcAddr + 4;
+    u32 dst = dstAddr;
+    u32 written = 0;
+
+    while (written < decompressedSize) {
+        const u8 flags = bus_.Read8(src++);
+        for (int bit = 7; bit >= 0 && written < decompressedSize; --bit) {
+            if ((flags & (1u << bit)) == 0) {
+                bus_.Write8(dst++, bus_.Read8(src++));
+                ++written;
+                continue;
+            }
+            const u8 byte0 = bus_.Read8(src++);
+            const u8 byte1 = bus_.Read8(src++);
+            const u32 length = (static_cast<u32>(byte0) >> 4) + 3u;
+            const u32 disp = ((static_cast<u32>(byte0) & 0xFu) << 8 | byte1) + 1u;
+            for (u32 i = 0; i < length && written < decompressedSize; ++i) {
+                bus_.Write8(dst, bus_.Read8(dst - disp));
+                ++dst;
+                ++written;
+            }
+        }
     }
 }
 
