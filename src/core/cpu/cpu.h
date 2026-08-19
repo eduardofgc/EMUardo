@@ -172,6 +172,7 @@ private:
     void HleRegisterRamReset();
     void HleHalt();
     void HleIntrWait();
+    void HleVBlankIntrWait();
     void HleDiv();
     void HleDivArm();
     void HleCpuSet();

@@ -129,6 +129,10 @@ u8 Bus::Read8(u32 address) const {
         case mem::kRomBase + 0x0100'0000:
         case mem::kRomBase + 0x0200'0000: {
             const std::size_t offset = address & (kMaxRomSize - 1);
+            u8 gpioValue;
+            if (gpio_.TryRead8(static_cast<u32>(offset), gpioValue)) {
+                return gpioValue;
+            }
             return offset < rom_.size() ? rom_[offset] : 0;
         }
         case mem::kSramBase:
@@ -214,6 +218,14 @@ void Bus::Write16(u32 address, u16 value) {
     if (save_.type() == SaveMemory::Type::kEeprom && (address & 0x0F00'0000) == mem::kEepromBase) {
         save_.WriteEeprom(value);
         return;
+    }
+    const u32 topNibble = address & 0x0F00'0000;
+    if (topNibble == mem::kRomBase || topNibble == mem::kRomBase + 0x0100'0000 ||
+        topNibble == mem::kRomBase + 0x0200'0000) {
+        const u32 romOffset = address & (kMaxRomSize - 1);
+        if (gpio_.TryWrite16(romOffset, value)) {
+            return;
+        }
     }
     Write8(address, static_cast<u8>(value & 0xFF));
     Write8(address + 1, static_cast<u8>((value >> 8) & 0xFF));

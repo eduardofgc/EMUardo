@@ -69,6 +69,7 @@ add_library(gba_core
     src/core/io/dma.cpp
     src/core/memory/bus.cpp
     src/core/memory/save.cpp
+    src/core/memory/gpio.cpp
     src/core/ppu/ppu.cpp
     src/core/emulator.cpp
 )

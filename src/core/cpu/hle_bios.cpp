@@ -7,7 +7,7 @@ bool Cpu::TryHleSwi(u32 number) {
         case 0x01: HleRegisterRamReset(); return true;
         case 0x02: HleHalt();             return true;
         case 0x04: HleIntrWait();         return true; // IntrWait
-        case 0x05: HleIntrWait();         return true; // VBlankIntrWait - see HleIntrWait's comment
+        case 0x05: HleVBlankIntrWait();   return true; // VBlankIntrWait
         case 0x06: HleDiv();              return true;
         case 0x07: HleDivArm();           return true;
         case 0x0B: HleCpuSet();           return true;
@@ -41,19 +41,37 @@ void Cpu::HleHalt() {
 }
 
 void Cpu::HleIntrWait() {
-    // Real IntrWait(waitForNew, wantedFlags) and VBlankIntrWait (a thin
-    // wrapper that calls IntrWait(1, VBlank)) both wait for one of a
+    // Real IntrWait(waitForNew, wantedFlags) waits for one of a
     // *specific* set of interrupt flags, tracked through a separate BIOS
     // Interrupt Flags mirror at 0x03007FF8 that the real IRQ trampoline
     // maintains. We simplify: treat this identically to Halt, waking on
     // ANY enabled interrupt rather than only the wanted ones.
     //
-    // This is exact for VBlankIntrWait when VBlank is the only enabled
-    // interrupt at the time (overwhelmingly the common case - most games'
-    // main loop is "VBlankIntrWait(); do per-frame work; repeat"), and an
-    // approximation otherwise (a game waiting on, say, Timer0 specifically
-    // while VBlank is also enabled could wake up one frame early). Worth
-    // revisiting if that turns out to matter for a real game.
+    // This is exact when the wanted flags are the only interrupt enabled
+    // at the time (overwhelmingly the common case), and an approximation
+    // otherwise (a game waiting on, say, Timer0 specifically while VBlank
+    // is also enabled could wake up one frame early). Worth revisiting if
+    // that turns out to matter for a real game.
+    halted_ = true;
+}
+
+void Cpu::HleVBlankIntrWait() {
+    // VBlankIntrWait is a thin real-BIOS wrapper that first ensures
+    // VBlank interrupts can actually reach IF at all - IE's VBlank bit
+    // and, critically, DISPSTAT's VBlank-IRQ-enable bit (bit3), which is
+    // what actually gates the PPU raising the interrupt condition in the
+    // first place - before falling through to the same wait as
+    // IntrWait(1, VBlank). A game that trusts the BIOS to do this (rather
+    // than setting DISPSTAT itself beforehand) would otherwise wait
+    // forever under our HLE, since nothing else ever sets that bit for
+    // it. GBATEK "SWI 05h - VBlankIntrWait".
+    u16 dispstat = bus_.Read16(mem::kIoBase + io::kDispstat);
+    dispstat = static_cast<u16>(dispstat | (1u << 3));
+    bus_.Write16(mem::kIoBase + io::kDispstat, dispstat);
+
+    const u16 ie = bus_.Read16(mem::kIoBase + io::kIe);
+    bus_.Write16(mem::kIoBase + io::kIe, static_cast<u16>(ie | irq::kVBlank));
+
     halted_ = true;
 }
 

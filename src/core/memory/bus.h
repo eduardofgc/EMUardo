@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "core/memory/gpio.h"
 #include "core/memory/save.h"
 #include "core/types.h"
 
@@ -71,6 +72,7 @@ private:
 
     SaveMemory save_;
     std::string savePath_; // derived from the loaded ROM's path (same name, .sav extension)
+    Gpio gpio_;
 
     // We don't have (and can't ship) a real GBA BIOS ROM dump - it's
     // Nintendo's copyrighted firmware. Instead, this writes a small,
