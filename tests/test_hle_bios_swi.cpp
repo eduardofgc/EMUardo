@@ -160,15 +160,69 @@ void TestCpuSet() {
     }
 }
 
+// ---------------------------------------------------------------------
+// Test 4: SWI 0x12 (LZ77UnCompVRAM) - literal bytes plus an overlapping
+// back-reference (the classic LZ77 self-referential-copy case, where the
+// copy source runs into bytes the same copy already wrote).
+// ---------------------------------------------------------------------
+void TestLz77UnComp() {
+    gba::Bus bus;
+
+    const char* path = "/tmp/gba_hle_lz77_test_rom.bin";
+    std::vector<std::uint8_t> program;
+    const gba::u32 dst = gba::mem::kEwramBase + 0x300u;
+
+    PushWord(program, 0xE59F'0004u); // LDR R0, [PC, #4]  -> src literal at offset 12
+    PushWord(program, 0xE59F'1004u); // LDR R1, [PC, #4]  -> dst literal at offset 16
+    PushWord(program, 0xEF12'0000u); // SWI 0x12 (LZ77UnCompVRAM)
+    PushWord(program, gba::mem::kRomBase + 20u); // src literal: compressed data starts right after this literal pool
+    PushWord(program, dst);          // dst literal
+
+    // Decompresses to 8 bytes: 4 literals (0x10,0x20,0x30,0x40) followed
+    // by a length-4/disp-2 back-reference, which - copied one byte at a
+    // time - produces 0x30,0x40,0x30,0x40 by reading bytes the same copy
+    // just wrote. See hle_bios.cpp's HleLz77UnComp comment for the format.
+    PushWord(program, (8u << 8) | 0x10u); // header: size=8, type=1 (LZ77)
+    program.push_back(0x08u); // flags: bits7-3 = 0,0,0,0,1 (4 literals then 1 compressed unit)
+    program.push_back(0x10u); // literal
+    program.push_back(0x20u); // literal
+    program.push_back(0x30u); // literal
+    program.push_back(0x40u); // literal
+    program.push_back(0x10u); // compressed byte0: length nibble=1 (length=4), disp hi=0
+    program.push_back(0x01u); // compressed byte1: disp lo=1 (disp=2)
+
+    if (!WriteTestRom(path, program)) {
+        std::printf("FAIL: could not write LZ77 test ROM\n");
+        ++failures;
+        return;
+    }
+    bus.LoadRom(path);
+    gba::Cpu cpu(bus);
+
+    cpu.Step(); // LDR R0, src
+    cpu.Step(); // LDR R1, dst
+    Check(cpu.GetRegister(0) == gba::mem::kRomBase + 20u, "LZ77 test: R0 (src) loaded correctly");
+    Check(cpu.GetRegister(1) == dst, "LZ77 test: R1 (dst) loaded correctly");
+    cpu.Step(); // SWI LZ77UnCompVRAM
+
+    static constexpr gba::u8 expected[8] = {0x10, 0x20, 0x30, 0x40, 0x30, 0x40, 0x30, 0x40};
+    for (gba::u32 i = 0; i < 8; ++i) {
+        char label[80];
+        std::snprintf(label, sizeof(label), "LZ77 test: decompressed byte %u correct", i);
+        Check(bus.Read8(dst + i) == expected[i], label);
+    }
+}
+
 } // namespace
 
 int main() {
     TestHalt();
     TestDiv();
     TestCpuSet();
+    TestLz77UnComp();
 
     if (failures == 0) {
-        std::printf("PASS: HLE Halt, Div, and CpuSet\n");
+        std::printf("PASS: HLE Halt, Div, CpuSet, and LZ77UnComp\n");
     }
     return failures;
 }

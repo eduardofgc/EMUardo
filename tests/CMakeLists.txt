@@ -60,3 +60,21 @@ add_executable(gba_tests_ppu_affine
 )
 target_link_libraries(gba_tests_ppu_affine PRIVATE gba_core)
 add_test(NAME ppu_affine_test COMMAND gba_tests_ppu_affine)
+
+add_executable(gba_tests_ppu_windows_blend
+    test_ppu_windows_blend.cpp
+)
+target_link_libraries(gba_tests_ppu_windows_blend PRIVATE gba_core)
+add_test(NAME ppu_windows_blend_test COMMAND gba_tests_ppu_windows_blend)
+
+add_executable(gba_tests_ppu_bitmap_sprites
+    test_ppu_bitmap_sprites.cpp
+)
+target_link_libraries(gba_tests_ppu_bitmap_sprites PRIVATE gba_core)
+add_test(NAME ppu_bitmap_sprites_test COMMAND gba_tests_ppu_bitmap_sprites)
+
+add_executable(gba_tests_save
+    test_save.cpp
+)
+target_link_libraries(gba_tests_save PRIVATE gba_core)
+add_test(NAME save_test COMMAND gba_tests_save)

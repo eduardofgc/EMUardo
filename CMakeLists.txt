@@ -10,7 +10,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)  # generates compile_commands.json for clangd/LSP
 
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
+    # An unoptimized (Debug) build of the CPU interpreter can't sustain
+    # real GBA speed (~59.7fps) on typical hardware - measured ~32fps vs
+    # ~131fps for the exact same code built Release, which is what the
+    # "the game runs choppy/slow" reports traced back to. Release keeps
+    # -DNDEBUG (this project doesn't rely on assert() for control flow,
+    # so that's safe) - pass -DCMAKE_BUILD_TYPE=Debug explicitly when you
+    # actually want unoptimized/steppable-in-gdb builds.
+    set(CMAKE_BUILD_TYPE Release)
 endif()
 
 # Keep binaries in one place regardless of subdirectory structure
@@ -61,6 +68,8 @@ add_library(gba_core
     src/core/io/timers.cpp
     src/core/io/dma.cpp
     src/core/memory/bus.cpp
+    src/core/memory/save.cpp
+    src/core/memory/gpio.cpp
     src/core/ppu/ppu.cpp
     src/core/emulator.cpp
 )

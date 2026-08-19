@@ -25,6 +25,8 @@ namespace mem {
     constexpr u32 kVramBase    = 0x0600'0000; // 96 KB video RAM
     constexpr u32 kOamBase     = 0x0700'0000; // 1 KB object attribute memory
     constexpr u32 kRomBase     = 0x0800'0000; // cartridge ROM, up to 32 MB
+    constexpr u32 kEepromBase  = 0x0D00'0000; // EEPROM save chip - only meaningful when one is detected
+    constexpr u32 kSramBase    = 0x0E00'0000; // SRAM or Flash save chip - only one is ever present per cart
 }
 
 // I/O register byte offsets within the I/O region (GBATEK "GBA I/O Map").
@@ -52,6 +54,25 @@ namespace io {
     constexpr u32 kBg3Pa = 0x030; constexpr u32 kBg3Pb = 0x032;
     constexpr u32 kBg3Pc = 0x034; constexpr u32 kBg3Pd = 0x036;
     constexpr u32 kBg3X  = 0x038; constexpr u32 kBg3Y  = 0x03C;
+
+    // Windowing, mosaic and color special effects (GBATEK "Windows" /
+    // "Mosaic Function" / "Color Special Effects"). WIN0H/WIN1H pack
+    // (X1<<8)|X2 - X1 left edge inclusive, X2 right edge exclusive; WIN0V/
+    // WIN1V pack (Y1<<8)|Y2 the same way. WININ bits0-5/8-13 are the
+    // BG0-3/OBJ/Effect enable flags for inside Win0/Win1 respectively;
+    // WINOUT bits0-5/8-13 are the same for outside all windows / inside
+    // the OBJ window. MOSAIC packs BG H/V size in bits0-3/4-7 and OBJ H/V
+    // size in bits8-11/12-15 (register value + 1 = size in pixels).
+    // BLDCNT bits0-5/8-13 select which layers count as the 1st/2nd target
+    // pixel (BG0-3, OBJ, Backdrop, in that bit order), bits6-7 select the
+    // effect (0=None,1=Alpha blend,2=Brightness increase,3=decrease).
+    // BLDALPHA holds the EVA/EVB blend coefficients (bits0-4/8-12), BLDY
+    // the EVY brightness coefficient (bits0-4).
+    constexpr u32 kWin0H = 0x040; constexpr u32 kWin1H = 0x042;
+    constexpr u32 kWin0V = 0x044; constexpr u32 kWin1V = 0x046;
+    constexpr u32 kWinIn = 0x048; constexpr u32 kWinOut = 0x04A;
+    constexpr u32 kMosaic = 0x04C;
+    constexpr u32 kBldCnt = 0x050; constexpr u32 kBldAlpha = 0x052; constexpr u32 kBldY = 0x054;
 
     constexpr u32 kKeyInput = 0x130; // Key status - active LOW (0=pressed, 1=released)
     constexpr u32 kKeyCnt   = 0x132; // Key interrupt control

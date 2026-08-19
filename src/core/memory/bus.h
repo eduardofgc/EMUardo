@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "core/memory/gpio.h"
+#include "core/memory/save.h"
 #include "core/types.h"
 
 namespace gba {
@@ -44,6 +46,11 @@ public:
     // inversion for the actual register happens inside.
     void SetKeyState(u16 pressedMask);
 
+    // Writes the cartridge save data to disk if it's changed since the
+    // last flush (cheap to call every frame - it's a no-op otherwise). No
+    // save chip was detected (or no ROM is loaded) is not an error.
+    bool FlushSave();
+
 private:
     static constexpr std::size_t kBiosSize    = 16 * 1024;
     static constexpr std::size_t kEwramSize   = 256 * 1024;
@@ -62,6 +69,10 @@ private:
     std::array<u8, kVramSize>    vram_{};
     std::array<u8, kOamSize>     oam_{};
     std::vector<u8>              rom_;
+
+    SaveMemory save_;
+    std::string savePath_; // derived from the loaded ROM's path (same name, .sav extension)
+    Gpio gpio_;
 
     // We don't have (and can't ship) a real GBA BIOS ROM dump - it's
     // Nintendo's copyrighted firmware. Instead, this writes a small,

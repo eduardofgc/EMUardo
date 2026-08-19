@@ -161,19 +161,24 @@ private:
     // result in place, same as it would after a real BIOS call completes).
     //
     // TODO: only the SWI numbers games rely on most heavily for not
-    // hanging (Halt/IntrWait) or that are simple to implement natively
-    // (Div, CpuSet) are covered. Notably NOT implemented: the LZ77/Huffman/
-    // RL decompression calls many games use for compressed graphics data -
-    // those will currently silently do nothing, so compressed tiles/maps
-    // will show as garbage or blank until that's added.
+    // hanging (Halt/IntrWait), that are simple to implement natively
+    // (Div, CpuSet), or that graphics decompression depends on (LZ77) are
+    // covered. Notably NOT implemented: Huffman/RL decompression and the
+    // Diff8bit/16bitUnFilter calls some games use for compressed graphics
+    // data - those will currently silently do nothing, so tiles/maps
+    // compressed with those specific formats will show as garbage or
+    // blank until that's added.
     bool TryHleSwi(u32 number);
     void HleRegisterRamReset();
     void HleHalt();
     void HleIntrWait();
+    void HleVBlankIntrWait();
     void HleDiv();
     void HleDivArm();
     void HleCpuSet();
     void HleCpuFastSet();
+    void HleLz77UnComp();
+    void HleObjAffineSet();
 
     // True between a Halt/IntrWait-family SWI and the next enabled
     // interrupt. Per GBATEK, Halt exit only requires (IE & IF) != 0 - it
