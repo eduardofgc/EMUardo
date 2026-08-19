@@ -152,35 +152,73 @@ void Ppu::RenderFrame() {
 void Ppu::RenderMode3() {
     // Mode 3: BG2 only, one 16-bit BGR555 pixel per screen pixel, laid out
     // left-to-right/top-to-bottom starting at the base of VRAM - no tiles,
-    // no palette, no scrolling registers consulted here yet. GBATEK
-    // "BG Mode 3 - 16bit Bitmap".
-    for (int y = 0; y < kScreenHeight; ++y) {
-        for (int x = 0; x < kScreenWidth; ++x) {
-            const u32 pixelIndex = static_cast<u32>(y * kScreenWidth + x);
-            const u32 address = mem::kVramBase + pixelIndex * 2;
-            const u16 color = bus_.Read16(address);
-            framebuffer_[pixelIndex] = Bgr555ToRgba8888(color);
+    // no palette, no scrolling registers. GBATEK "BG Mode 3 - 16bit
+    // Bitmap". Like Modes 0-2, sprites can be drawn on top of the bitmap,
+    // so this fills bgLayer_[2] (always fully opaque - a bitmap has no
+    // transparent color index) and goes through the same
+    // RenderSprites()/CompositeLayers() path rather than writing
+    // framebuffer_ directly.
+    const u16 dispcnt = bus_.Read16(mem::kIoBase + io::kDispcnt);
+    const bool bg2Enabled = (dispcnt & (1u << 10)) != 0;
+    bool bgEnabled[4] = {false, false, bg2Enabled, false};
+    u8 bgPriority[4] = {0, 0, 0, 0};
+
+    if (bg2Enabled) {
+        const u16 control = bus_.Read16(mem::kIoBase + io::kBg2Cnt);
+        bgPriority[2] = static_cast<u8>(control & 0x3u);
+
+        auto& layer = bgLayer_[2];
+        for (int y = 0; y < kScreenHeight; ++y) {
+            for (int x = 0; x < kScreenWidth; ++x) {
+                const std::size_t pixelIndex = static_cast<std::size_t>(y * kScreenWidth + x);
+                const u32 address = mem::kVramBase + static_cast<u32>(pixelIndex) * 2u;
+                layer[pixelIndex].opaque = true;
+                layer[pixelIndex].color = Bgr555ToRgba8888(bus_.Read16(address));
+            }
         }
     }
+
+    const bool objEnabled = (dispcnt & (1u << 12)) != 0;
+    if (objEnabled) {
+        RenderSprites();
+    }
+    CompositeLayers(bgEnabled, bgPriority, objEnabled);
 }
 
 void Ppu::RenderMode4() {
     // Mode 4: BG2 is a 240x160 8bpp paletted bitmap - one byte per pixel,
     // indexing the BG palette (same palette bank Mode 0's 8bpp
     // backgrounds use). Double-buffered: DISPCNT bit4 selects which of
-    // the two VRAM frames is currently visible.
+    // the two VRAM frames is currently visible. Composited the same way
+    // as Mode 3 - see its comment.
     const u16 dispcnt = bus_.Read16(mem::kIoBase + io::kDispcnt);
-    const bool secondFrame = (dispcnt & (1u << 4)) != 0;
-    const u32 frameBase = mem::kVramBase + (secondFrame ? 0xA000u : 0u);
+    const bool bg2Enabled = (dispcnt & (1u << 10)) != 0;
+    bool bgEnabled[4] = {false, false, bg2Enabled, false};
+    u8 bgPriority[4] = {0, 0, 0, 0};
 
-    for (int y = 0; y < kScreenHeight; ++y) {
-        for (int x = 0; x < kScreenWidth; ++x) {
-            const u32 pixelIndex = static_cast<u32>(y * kScreenWidth + x);
-            const u8 colorIndex = bus_.Read8(frameBase + pixelIndex);
-            const u32 paletteAddr = mem::kPaletteBase + static_cast<u32>(colorIndex) * 2u;
-            framebuffer_[pixelIndex] = Bgr555ToRgba8888(bus_.Read16(paletteAddr));
+    if (bg2Enabled) {
+        const bool secondFrame = (dispcnt & (1u << 4)) != 0;
+        const u32 frameBase = mem::kVramBase + (secondFrame ? 0xA000u : 0u);
+        const u16 control = bus_.Read16(mem::kIoBase + io::kBg2Cnt);
+        bgPriority[2] = static_cast<u8>(control & 0x3u);
+
+        auto& layer = bgLayer_[2];
+        for (int y = 0; y < kScreenHeight; ++y) {
+            for (int x = 0; x < kScreenWidth; ++x) {
+                const std::size_t pixelIndex = static_cast<std::size_t>(y * kScreenWidth + x);
+                const u8 colorIndex = bus_.Read8(frameBase + static_cast<u32>(pixelIndex));
+                const u32 paletteAddr = mem::kPaletteBase + static_cast<u32>(colorIndex) * 2u;
+                layer[pixelIndex].opaque = true;
+                layer[pixelIndex].color = Bgr555ToRgba8888(bus_.Read16(paletteAddr));
+            }
         }
     }
+
+    const bool objEnabled = (dispcnt & (1u << 12)) != 0;
+    if (objEnabled) {
+        RenderSprites();
+    }
+    CompositeLayers(bgEnabled, bgPriority, objEnabled);
 }
 
 void Ppu::RenderMode5() {
@@ -188,46 +226,64 @@ void Ppu::RenderMode5() {
     // like Mode 4, but the bitmap is 160x128 - smaller than the 240x160
     // screen - and goes through the same affine (rotate/scale) transform
     // as Modes 1/2 rather than a straight 1:1 blit. GBATEK "BG Mode 5".
+    // Composited the same way as Mode 3/4 - see Mode 3's comment. Pixels
+    // outside the 160x128 bitmap (when the overflow/wrap bit is clear)
+    // are left non-opaque so the compositor's own backdrop fallback
+    // handles them, rather than writing the backdrop color here directly.
     static constexpr int kBitmapWidth = 160;
     static constexpr int kBitmapHeight = 128;
 
     const u16 dispcnt = bus_.Read16(mem::kIoBase + io::kDispcnt);
-    const bool secondFrame = (dispcnt & (1u << 4)) != 0;
-    const u32 frameBase = mem::kVramBase + (secondFrame ? 0xA000u : 0u);
+    const bool bg2Enabled = (dispcnt & (1u << 10)) != 0;
+    bool bgEnabled[4] = {false, false, bg2Enabled, false};
+    u8 bgPriority[4] = {0, 0, 0, 0};
 
-    const u16 control = bus_.Read16(mem::kIoBase + io::kBg2Cnt);
-    const bool wrap = (control & (1u << 13)) != 0;
+    if (bg2Enabled) {
+        const bool secondFrame = (dispcnt & (1u << 4)) != 0;
+        const u32 frameBase = mem::kVramBase + (secondFrame ? 0xA000u : 0u);
 
-    const s16 pa = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pa));
-    const s16 pb = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pb));
-    const s16 pc = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pc));
-    const s16 pd = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pd));
-    const s32 x0 = SignExtend28(bus_.Read32(mem::kIoBase + io::kBg2X));
-    const s32 y0 = SignExtend28(bus_.Read32(mem::kIoBase + io::kBg2Y));
+        const u16 control = bus_.Read16(mem::kIoBase + io::kBg2Cnt);
+        bgPriority[2] = static_cast<u8>(control & 0x3u);
+        const bool wrap = (control & (1u << 13)) != 0;
 
-    const u32 backdrop = Bgr555ToRgba8888(bus_.Read16(mem::kPaletteBase));
+        const s16 pa = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pa));
+        const s16 pb = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pb));
+        const s16 pc = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pc));
+        const s16 pd = static_cast<s16>(bus_.Read16(mem::kIoBase + io::kBg2Pd));
+        const s32 x0 = SignExtend28(bus_.Read32(mem::kIoBase + io::kBg2X));
+        const s32 y0 = SignExtend28(bus_.Read32(mem::kIoBase + io::kBg2Y));
 
-    for (int line = 0; line < kScreenHeight; ++line) {
-        const s32 refX = x0 + line * pb;
-        const s32 refY = y0 + line * pd;
+        auto& layer = bgLayer_[2];
+        for (int line = 0; line < kScreenHeight; ++line) {
+            const s32 refX = x0 + line * pb;
+            const s32 refY = y0 + line * pd;
 
-        for (int x = 0; x < kScreenWidth; ++x) {
-            s32 srcX = (refX + x * pa) >> 8;
-            s32 srcY = (refY + x * pc) >> 8;
+            for (int x = 0; x < kScreenWidth; ++x) {
+                s32 srcX = (refX + x * pa) >> 8;
+                s32 srcY = (refY + x * pc) >> 8;
 
-            if (wrap) {
-                srcX = FloorMod(srcX, kBitmapWidth);
-                srcY = FloorMod(srcY, kBitmapHeight);
-            } else if (srcX < 0 || srcX >= kBitmapWidth || srcY < 0 || srcY >= kBitmapHeight) {
-                framebuffer_[static_cast<std::size_t>(line * kScreenWidth + x)] = backdrop;
-                continue;
+                const std::size_t pixelIndex = static_cast<std::size_t>(line * kScreenWidth + x);
+
+                if (wrap) {
+                    srcX = FloorMod(srcX, kBitmapWidth);
+                    srcY = FloorMod(srcY, kBitmapHeight);
+                } else if (srcX < 0 || srcX >= kBitmapWidth || srcY < 0 || srcY >= kBitmapHeight) {
+                    layer[pixelIndex].opaque = false;
+                    continue;
+                }
+
+                const u32 pixelAddr = frameBase + static_cast<u32>(srcY * kBitmapWidth + srcX) * 2u;
+                layer[pixelIndex].opaque = true;
+                layer[pixelIndex].color = Bgr555ToRgba8888(bus_.Read16(pixelAddr));
             }
-
-            const u32 pixelAddr = frameBase + static_cast<u32>(srcY * kBitmapWidth + srcX) * 2u;
-            framebuffer_[static_cast<std::size_t>(line * kScreenWidth + x)] =
-                Bgr555ToRgba8888(bus_.Read16(pixelAddr));
         }
     }
+
+    const bool objEnabled = (dispcnt & (1u << 12)) != 0;
+    if (objEnabled) {
+        RenderSprites();
+    }
+    CompositeLayers(bgEnabled, bgPriority, objEnabled);
 }
 
 void Ppu::RenderMode0() {

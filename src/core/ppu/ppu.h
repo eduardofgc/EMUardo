@@ -68,8 +68,10 @@ private:
 
     // Mode 3: BG2 is a single 240x160 16-bit-color bitmap, one pixel per
     // VRAM halfword, no palette indirection. GBATEK "BG Mode 3 - 16bit
-    // Bitmap". This is the simplest of the six modes and the natural
-    // first one to implement.
+    // Bitmap". Like Modes 0-2, OBJ sprites still render on top of it (and
+    // through windowing/blending) - the bitmap is fed into bgLayer_[2] as
+    // an always-opaque "background" and composited via the same
+    // RenderSprites()/CompositeLayers() calls the tiled modes use.
     void RenderMode3();
 
     // Mode 4: BG2 is a 240x160 8-bit-per-pixel paletted bitmap (indices
@@ -77,6 +79,7 @@ private:
     // of the two VRAM frames (0x06000000 or 0x0600A000) is currently
     // visible, letting a game draw into the hidden one and flip instantly
     // instead of racing the beam. GBATEK "BG Mode 4 - 256 color Bitmap".
+    // Composited the same way as Mode 3 - see its comment.
     void RenderMode4();
 
     // Mode 0: up to four regular ("text mode") tiled backgrounds plus OBJ
@@ -97,7 +100,8 @@ private:
     // buffered via DISPCNT bit4), but the bitmap is only 160x128 - smaller
     // than the screen - and, being BG2, goes through the same affine
     // transform as Modes 1/2 rather than being blitted 1:1 like Mode 3/4.
-    // GBATEK "BG Mode 5 - Rot/Scale Bitmap".
+    // GBATEK "BG Mode 5 - Rot/Scale Bitmap". Composited the same way as
+    // Mode 3/4 - see Mode 3's comment.
     void RenderMode5();
 
     // Fills bgLayer_[bgIndex] with one background's pixels for this frame,
