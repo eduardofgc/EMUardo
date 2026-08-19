@@ -42,7 +42,17 @@ void Cpu::ArmSoftwareInterrupt(u32 instruction) {
     if (TryHleSwi(number)) {
         return;
     }
-    EnterException(CpuMode::Supervisor, 0x0000'0008u);
+    // Not HLE'd, and we have no real BIOS code sitting at the SWI vector
+    // (0x08) to jump to - unlike the IRQ vector (0x18), which does hold a
+    // working trampoline. Entering the exception here would switch to
+    // Supervisor mode and start executing whatever zero bytes happen to
+    // be there, which (confirmed by tracing a real hang) eventually
+    // marches forward far enough to hit the IRQ trampoline by sheer
+    // address coincidence and calls the game's real interrupt handler
+    // completely out of context - corrupting CPU state far worse than
+    // just not implementing the call. Treating it as a no-op is closer
+    // to real hardware's own behavior for the (documented as harmless)
+    // case of calling an unassigned SWI number anyway.
 }
 
 void Cpu::ArmUndefined(u32 /*instruction*/) {

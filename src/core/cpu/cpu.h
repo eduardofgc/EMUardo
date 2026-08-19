@@ -178,6 +178,7 @@ private:
     void HleCpuSet();
     void HleCpuFastSet();
     void HleLz77UnComp();
+    void HleObjAffineSet();
 
     // True between a Halt/IntrWait-family SWI and the next enabled
     // interrupt. Per GBATEK, Halt exit only requires (IE & IF) != 0 - it

@@ -1,6 +1,12 @@
 #include "core/cpu/cpu.h"
 
+#include <cmath>
+
 namespace gba {
+
+namespace {
+constexpr double kPi = 3.14159265358979323846;
+} // namespace
 
 bool Cpu::TryHleSwi(u32 number) {
     switch (number) {
@@ -12,16 +18,17 @@ bool Cpu::TryHleSwi(u32 number) {
         case 0x07: HleDivArm();           return true;
         case 0x0B: HleCpuSet();           return true;
         case 0x0C: HleCpuFastSet();       return true;
+        case 0x0F: HleObjAffineSet();      return true; // ObjAffineSet
         case 0x11: HleLz77UnComp();       return true; // LZ77UnCompWRAM
         case 0x12: HleLz77UnComp();       return true; // LZ77UnCompVRAM - see HleLz77UnComp's comment
         default:
             // Not HLE'd - Huffman/RL decompression, Diff8bit/16bitUnFilter,
-            // Sqrt, ArcTan, BgAffineSet, ObjAffineSet, sound-related calls,
-            // and others aren't implemented. Falls back to
-            // Arm/ThumbSoftwareInterrupt's real EnterException(Supervisor,
-            // 0x08) path, which currently has no real BIOS code to run
-            // there either - the call will effectively do nothing useful.
-            // See the TODO on this function's declaration in cpu.h.
+            // Sqrt, ArcTan, BgAffineSet, sound-related calls, and others
+            // aren't implemented. Falls back to Arm/ThumbSoftwareInterrupt's
+            // real EnterException(Supervisor, 0x08) path, which currently
+            // has no real BIOS code to run there either - the call will
+            // effectively do nothing useful. See the TODO on this
+            // function's declaration in cpu.h.
             return false;
     }
 }
@@ -228,6 +235,50 @@ void Cpu::HleCpuFastSet() {
             s += 4u;
         }
         d += 4u;
+    }
+}
+
+void Cpu::HleObjAffineSet() {
+    // ObjAffineSet(src, dst, count, diff) - GBATEK "SWI 0Fh". Builds
+    // rotation/scaling matrices from a scale+angle description, e.g. for
+    // the rotating logo in Pokemon Emerald's intro.
+    //
+    // Source entries are 8 bytes each (2 bytes padding after the
+    // meaningful 6): s16 sx, s16 sy (8.8 fixed point), u16 theta (only
+    // the upper 8 bits matter - 256 steps over a full turn, GBATEK: "the
+    // GBA BIOS recurses only the upper 8bit").
+    //
+    // Destination is PA,PB,PC,PD (s16 each) per entry, but not
+    // necessarily packed together - `diff` is the byte stride between
+    // each of the four fields (2 = tightly packed, 8 = OAM layout, where
+    // PA/PB/PC/PD live in the affine-parameter attr of four consecutive
+    // 8-byte OAM entries).
+    const u32 src = GetRegister(0);
+    const u32 dst = GetRegister(1);
+    const u32 count = GetRegister(2);
+    const u32 diff = GetRegister(3);
+
+    for (u32 i = 0; i < count; ++i) {
+        const u32 entrySrc = src + i * 8u;
+        const auto sx = static_cast<s32>(static_cast<s16>(bus_.Read16(entrySrc + 0)));
+        const auto sy = static_cast<s32>(static_cast<s16>(bus_.Read16(entrySrc + 2)));
+        const u32 theta = bus_.Read16(entrySrc + 4) >> 8; // upper 8 bits = angle step, 256/turn
+
+        const double angle = (static_cast<double>(theta) / 256.0) * 2.0 * kPi;
+        const double cosA = std::cos(angle);
+        const double sinA = std::sin(angle);
+
+        // sx/sy are 8.8 fixed point; keep the result in that same format.
+        const auto pa = static_cast<s16>(std::lround(sx * cosA));
+        const auto pb = static_cast<s16>(std::lround(-sx * sinA));
+        const auto pc = static_cast<s16>(std::lround(sy * sinA));
+        const auto pd = static_cast<s16>(std::lround(sy * cosA));
+
+        const u32 entryDst = dst + i * diff * 4u;
+        bus_.Write16(entryDst + 0u * diff, static_cast<u16>(pa));
+        bus_.Write16(entryDst + 1u * diff, static_cast<u16>(pb));
+        bus_.Write16(entryDst + 2u * diff, static_cast<u16>(pc));
+        bus_.Write16(entryDst + 3u * diff, static_cast<u16>(pd));
     }
 }
 

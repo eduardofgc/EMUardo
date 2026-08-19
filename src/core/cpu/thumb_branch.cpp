@@ -40,7 +40,9 @@ void Cpu::ThumbSoftwareInterrupt(u16 instruction) {
     if (TryHleSwi(number)) {
         return;
     }
-    EnterException(CpuMode::Supervisor, 0x0000'0008u);
+    // See ArmSoftwareInterrupt's comment on the same fallback: no real
+    // BIOS code sits at the SWI vector, so entering the exception would
+    // corrupt CPU state rather than harmlessly do nothing.
 }
 
 // ---------------------------------------------------------------------
