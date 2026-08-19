@@ -1,18 +1,18 @@
-# GBA Emulator
+# GBArdo
 
-Um emulador de Game Boy Advance escrito em C++20, construído do zero: um
-interpretador ARM7TDMI (conjuntos de instruções ARM e Thumb), uma PPU
-cobrindo os seis modos de background além de sprites, emulação de save de
-cartucho (SRAM, Flash, EEPROM) e uma implementação de GPIO/RTC para
-cartuchos que usam esse hardware. Renderizado e controlado via SDL2.
+GBArdo é um emulador open-source de Game Boy Advance escrito em C++20, 
+construído do zero: um interpretador ARM7TDMI, uma PPU cobrindo os 
+seis modos de background além de sprites, emulação de save de cartucho 
+(SRAM, Flash, EEPROM) e uma implementação de GPIO/RTC para cartuchos 
+que usam esse hardware. Renderizado e controlado usando SDL2.
 
 Este projeto não inclui nem exige uma BIOS real da Nintendo. O
 despacho de interrupções e as poucas chamadas de BIOS (`SWI`) das quais
-os jogos realmente dependem são implementados nativamente em C++ ("HLE" -
-high-level emulation) em vez de rodar o firmware proprietário da
-Nintendo. Você é responsável por fornecer suas próprias ROMs (por
-exemplo, homebrew, ou dumps de cartuchos que você possui legalmente) -
-nenhuma ROM está incluída neste repositório.
+os jogos realmente dependem são implementados nativamente em C++ usando
+HLE (High Level Emulation) em vez de rodar o firmware proprietário padrão.
+
+Você é responsável por fazer o dump dos seus próprios cartuchos obtidos
+legalmente. Nenhuma ROM está incluída nesse repositório.
 
 ## Status
 
@@ -36,7 +36,7 @@ Funcionando:
 
 Lacunas conhecidas:
 
-- Sem APU/som - o emulador roda em silêncio
+- APU/som estão incompletos, deixando o áudio completamente quebrado
 - A PPU renderiza um frame inteiro de uma vez em vez de scanline por
   scanline, então jogos que dependem de efeitos de raster no meio do
   frame (splits de scroll cronometrados por HBlank, trocas de paleta no
@@ -46,7 +46,7 @@ Lacunas conhecidas:
 - Diversas chamadas SWI menos comuns não estão implementadas
   (descompressão Huffman/RL, Diff8bit/16bitUnFilter, Sqrt, ArcTan,
   BgAffineSet, ObjAffineSet, chamadas relacionadas a som)
-- A compatibilidade varia por jogo - títulos mais simples/antigos têm
+- A compatibilidade varia por jogo. Títulos mais simples/antigos têm
   mais chance de rodar corretamente do que títulos tecnicamente
   ambiciosos
 
@@ -61,15 +61,15 @@ cmake --build build -j
 ```
 
 O tipo de build padrão é `Release` (um build `Debug` sem otimização não
-consegue sustentar a velocidade real do GBA - cerca de 32fps contra os
-59.7fps necessários, medido contra 131fps para o mesmo código compilado
+consegue sustentar a velocidade real do GBA, que é cerca de 32fps comparados
+aos 59.7fps necessários, medido contra 131fps para o mesmo código compilado
 em Release). Passe `-DCMAKE_BUILD_TYPE=Debug` explicitamente se precisar
 de um build sem otimização, navegável no gdb.
 
 Outras opções do CMake:
 
-- `GBA_BUILD_TESTS` (padrão `ON`) - compila a suíte de testes
-- `GBA_ENABLE_ASAN` (padrão `OFF`) - AddressSanitizer + UBSan, apenas em
+- `GBA_BUILD_TESTS` (padrão `ON`): compila a suíte de testes
+- `GBA_ENABLE_ASAN` (padrão `OFF`): AddressSanitizer + UBSan, apenas em
   builds Debug
 
 ## Executando
@@ -103,7 +103,7 @@ ctest --test-dir build --output-on-failure
 
 Os testes ligam diretamente com a biblioteca `gba_core` (o mesmo código
 que o emulador real executa) e constroem o estado de CPU/Bus/PPU
-diretamente, em vez de depender de arquivos de ROM de teste - veja os
+diretamente, em vez de depender de arquivos de ROM de teste. Veja os
 arquivos em `tests/` para a convenção usada.
 
 ## Estrutura do projeto
