@@ -34,6 +34,19 @@ void Cpu::HleRegisterRamReset() {
     // the common case - a no-op reaches the same end state. A game that
     // calls this mid-run expecting a real clear would see stale data;
     // that's a TODO if it turns out to matter in practice.
+    //
+    // One side effect is NOT optional though: per GBATEK, real hardware
+    // unconditionally forces DISPCNT=0x0080 (forced blank on) here,
+    // regardless of R0. Games that call this as their very first
+    // instruction (as most do, including Pokemon Emerald) rely on that -
+    // Emerald's boot code queues its initial VBlank-IRQ-enable register
+    // write rather than applying it immediately unless forced blank is
+    // already active, and that queue is only ever flushed on a VBlank
+    // interrupt - which can't fire without the very enable bit stuck in
+    // the queue. Skipping this write turns that into a permanent
+    // deadlock (a white screen, since nothing ever gets past the game's
+    // own VBlank-wait loop).
+    bus_.Write16(mem::kIoBase + io::kDispcnt, 0x0080u);
 }
 
 void Cpu::HleHalt() {
