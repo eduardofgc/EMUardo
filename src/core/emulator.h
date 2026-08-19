@@ -1,7 +1,9 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
+#include "core/apu/apu.h"
 #include "core/cpu/cpu.h"
 #include "core/io/dma.h"
 #include "core/io/timers.h"
@@ -25,6 +27,11 @@ public:
 
     const Ppu& ppu() const { return ppu_; }
 
+    // Interleaved L,R signed-16-bit samples generated since the last
+    // call, at a fixed 32768Hz - main.cpp drains this once per host
+    // frame and queues it to SDL's audio device.
+    std::vector<s16> DrainAudioSamples() { return apu_.DrainSamples(); }
+
     // Forwards to Bus::SetKeyState - call once per host frame with the
     // current button state before RunFrame().
     void SetKeyState(u16 pressedMask) { bus_.SetKeyState(pressedMask); }
@@ -38,12 +45,18 @@ public:
 private:
     // Declaration order matters here: members construct in this order
     // regardless of the constructor's initializer-list order, and cpu_/
-    // ppu_/timers_/dma_ all hold a Bus& that must already be alive.
+    // ppu_/timers_/dma_/apu_ all hold a Bus& that must already be alive.
     Bus bus_;
     Cpu cpu_;
     Ppu ppu_;
     Timers timers_;
     Dma dma_;
+    Apu apu_;
+
+    // Runs one Direct Sound sample tick (see Apu::GenerateSample) every
+    // 512 CPU cycles - the exact divisor of the 16.78MHz CPU clock that
+    // yields 32768Hz, so this just tracks cycles owed since the last tick.
+    int cyclesSinceLastSample_ = 0;
 };
 
 } // namespace gba

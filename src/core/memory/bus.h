@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -51,6 +52,16 @@ public:
     // save chip was detected (or no ROM is loaded) is not an error.
     bool FlushSave();
 
+    // Routes FIFO_A/FIFO_B writes (0x040000A0/0x040000A4) to Apu instead
+    // of storing them as plain memory - Bus can't hold an Apu directly
+    // (Apu holds a Bus&, so that header dependency would be circular), so
+    // Emulator wires this up with plain callbacks once both exist, the
+    // same pattern used for Timers' and Dma's cross-links to Apu.
+    void SetFifoPushCallbacks(std::function<void(u32)> fifoA, std::function<void(u32)> fifoB) {
+        fifoAPush_ = std::move(fifoA);
+        fifoBPush_ = std::move(fifoB);
+    }
+
 private:
     static constexpr std::size_t kBiosSize    = 16 * 1024;
     static constexpr std::size_t kEwramSize   = 256 * 1024;
@@ -73,6 +84,8 @@ private:
     SaveMemory save_;
     std::string savePath_; // derived from the loaded ROM's path (same name, .sav extension)
     Gpio gpio_;
+    std::function<void(u32)> fifoAPush_;
+    std::function<void(u32)> fifoBPush_;
 
     // We don't have (and can't ship) a real GBA BIOS ROM dump - it's
     // Nintendo's copyrighted firmware. Instead, this writes a small,

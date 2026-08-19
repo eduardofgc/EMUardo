@@ -78,3 +78,9 @@ add_executable(gba_tests_save
 )
 target_link_libraries(gba_tests_save PRIVATE gba_core)
 add_test(NAME save_test COMMAND gba_tests_save)
+
+add_executable(gba_tests_apu
+    test_apu.cpp
+)
+target_link_libraries(gba_tests_apu PRIVATE gba_core)
+add_test(NAME apu_test COMMAND gba_tests_apu)

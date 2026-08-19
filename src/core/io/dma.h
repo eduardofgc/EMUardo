@@ -26,11 +26,23 @@ public:
     // Runs any channel enabled with VBlank start timing. Call once, right
     // as the PPU enters the VBlank period.
     //
-    // TODO: HBlank and Special (e.g. sound FIFO, video capture) start
-    // timings aren't implemented - HBlank in particular needs the PPU to
-    // actually be scanline-driven first (see ppu.h's TODO on Step()),
-    // since right now a whole frame renders in one shot at VBlank.
+    // TODO: HBlank isn't implemented yet - it needs the PPU to actually be
+    // scanline-driven first (see ppu.h's TODO on Step()), since right now
+    // a whole frame renders in one shot at VBlank. Special timing's other
+    // use (DMA3 video capture) isn't implemented either - only the sound
+    // FIFO case (below) is.
     void OnVBlank();
+
+    // The one Special-timing case that's implemented: Direct Sound's
+    // FIFO_A/FIFO_B ask for a refill once they run low. Apu calls this
+    // (via a callback wired up in Emulator) with the FIFO's address -
+    // whichever of DMA1/DMA2 is enabled with Special timing and has its
+    // destination set to that address runs a fixed 4-word (16-byte)
+    // transfer, per GBATEK "Channel A and B - DMA Sound". Unlike
+    // RunChannel(), this doesn't touch the count register or clear the
+    // enable bit - the transfer repeats every time the FIFO empties out,
+    // for as long as the game leaves the channel configured this way.
+    void OnFifoRequest(u32 fifoAddress);
 
 private:
     Bus& bus_;

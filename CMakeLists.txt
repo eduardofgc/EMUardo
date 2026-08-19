@@ -71,6 +71,7 @@ add_library(gba_core
     src/core/memory/save.cpp
     src/core/memory/gpio.cpp
     src/core/ppu/ppu.cpp
+    src/core/apu/apu.cpp
     src/core/emulator.cpp
 )
 

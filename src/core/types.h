@@ -91,6 +91,16 @@ namespace io {
     constexpr u32 kDma3Sad = 0x0D4; constexpr u32 kDma3Dad = 0x0D8;
     constexpr u32 kDma3CntL = 0x0DC; constexpr u32 kDma3CntH = 0x0DE;
 
+    // Direct Sound (DMA-fed PCM) control. GBATEK "SOUNDCNT_H", "SOUNDCNT_X",
+    // "SOUNDBIAS", "Channel A and B - DMA Sound". SOUNDCNT_L (PSG-only
+    // mixing) isn't listed yet - the four legacy tone/noise channels
+    // aren't implemented, so there's nothing to mix from it.
+    constexpr u32 kSoundCntH = 0x082; // bits0-1 PSG ratio, bit2/3 DSA/DSB volume, bits8-9/12-13 DSA/DSB L/R enable, bit10/14 DSA/DSB timer select, bit11/15 DSA/DSB FIFO reset
+    constexpr u32 kSoundCntX = 0x084; // bit7 master sound enable
+    constexpr u32 kSoundBias = 0x088; // bits1-9 bias level (default 200h)
+    constexpr u32 kFifoA = 0x0A0; // 32-bit write pushes 4 signed 8-bit samples
+    constexpr u32 kFifoB = 0x0A4;
+
     constexpr u32 kIe  = 0x200; // Interrupt Enable
     constexpr u32 kIf  = 0x202; // Interrupt Request/Acknowledge - write 1 to a bit to clear it
     constexpr u32 kIme = 0x208; // Interrupt Master Enable

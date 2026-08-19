@@ -6,9 +6,20 @@ namespace {
 constexpr int kScanlinesPerFrame = 228; // 160 visible + 68 VBlank
 constexpr int kVisibleScanlines  = 160;
 constexpr int kCyclesPerScanline = 1232;
+constexpr int kCyclesPerAudioSample = 512; // 16.78MHz / 512 = 32768Hz
 } // namespace
 
-Emulator::Emulator() : cpu_(bus_), ppu_(bus_), timers_(bus_), dma_(bus_) {}
+Emulator::Emulator() : cpu_(bus_), ppu_(bus_), timers_(bus_), dma_(bus_), apu_(bus_) {
+    // Cross-links between peripherals that each only hold a Bus& - see
+    // the comments on Timers::SetOverflowCallback, Apu::SetDmaRefillCallback
+    // and Bus::SetFifoPushCallbacks for why these go through callbacks
+    // instead of direct references.
+    timers_.SetOverflowCallback([this](int timerIndex) { apu_.OnTimerOverflow(timerIndex); });
+    apu_.SetDmaRefillCallback([this](u32 fifoAddress) { dma_.OnFifoRequest(fifoAddress); });
+    bus_.SetFifoPushCallbacks(
+        [this](u32 value) { apu_.PushFifoA(value); },
+        [this](u32 value) { apu_.PushFifoB(value); });
+}
 
 bool Emulator::LoadRom(const std::string& path) {
     return bus_.LoadRom(path);
@@ -52,6 +63,12 @@ void Emulator::RunFrame() {
             cyclesRun += cycles;
             timers_.Tick(cycles);
             dma_.CheckImmediate();
+
+            cyclesSinceLastSample_ += cycles;
+            while (cyclesSinceLastSample_ >= kCyclesPerAudioSample) {
+                apu_.GenerateSample();
+                cyclesSinceLastSample_ -= kCyclesPerAudioSample;
+            }
         }
         ppu_.Step();
     }

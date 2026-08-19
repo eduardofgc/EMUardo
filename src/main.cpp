@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 
 #include <cstdio>
+#include <vector>
 
 #include "core/emulator.h"
 #include "core/ppu/ppu.h"
@@ -10,9 +11,26 @@ constexpr int kWindowScale = 3;
 }
 
 int main(int argc, char** argv) {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return 1;
+    }
+
+    // 32768Hz matches Apu::GenerateSample()'s fixed tick rate (see
+    // emulator.cpp) - no resampling needed between the two. Queued rather
+    // than callback-driven, since we already produce a whole frame's
+    // worth of samples at once right after RunFrame().
+    SDL_AudioSpec audioSpec{};
+    audioSpec.freq = 32768;
+    audioSpec.format = AUDIO_S16SYS;
+    audioSpec.channels = 2;
+    audioSpec.samples = 2048;
+    const SDL_AudioDeviceID audioDevice = SDL_OpenAudioDevice(nullptr, 0, &audioSpec, nullptr, 0);
+    if (audioDevice == 0) {
+        std::fprintf(stderr, "SDL_OpenAudioDevice failed: %s\n", SDL_GetError());
+        // Not fatal - the emulator still runs, just silently.
+    } else {
+        SDL_PauseAudioDevice(audioDevice, 0);
     }
 
     SDL_Window* window = SDL_CreateWindow(
@@ -78,6 +96,21 @@ int main(int argc, char** argv) {
 
         emulator.RunFrame();
 
+        if (audioDevice != 0) {
+            const std::vector<gba::s16> samples = emulator.DrainAudioSamples();
+            if (!samples.empty()) {
+                // Cap the queue so a host frame drop (or the emulator
+                // briefly running ahead) can't build up unbounded audio
+                // latency - drop the backlog and let it resync instead of
+                // playing catch-up.
+                constexpr Uint32 kMaxQueuedBytes = 32768 * 2 * sizeof(gba::s16); // ~1s
+                if (SDL_GetQueuedAudioSize(audioDevice) < kMaxQueuedBytes) {
+                    SDL_QueueAudio(audioDevice, samples.data(),
+                                    static_cast<Uint32>(samples.size() * sizeof(gba::s16)));
+                }
+            }
+        }
+
         SDL_UpdateTexture(
             texture, nullptr, emulator.ppu().Framebuffer().data(),
             gba::Ppu::kScreenWidth * static_cast<int>(sizeof(gba::u32)));
@@ -89,6 +122,9 @@ int main(int argc, char** argv) {
 
     emulator.FlushSave();
 
+    if (audioDevice != 0) {
+        SDL_CloseAudioDevice(audioDevice);
+    }
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

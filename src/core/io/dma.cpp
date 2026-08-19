@@ -50,6 +50,35 @@ void Dma::OnVBlank() {
     }
 }
 
+void Dma::OnFifoRequest(u32 fifoAddress) {
+    // Only DMA1 and DMA2 support Special timing for sound - GBATEK
+    // "Channel A and B - DMA Sound" ("Whenever FIFO becomes half empty
+    // ... a DMA Request is issued for DMA1 (Sound A) or DMA2 (Sound B)").
+    // Nothing hardware-enforces channel 1 = A / 2 = B though - what
+    // actually matters is which channel's destination is pointed at this
+    // particular FIFO, so check both.
+    for (int channel = 1; channel <= 2; ++channel) {
+        const u16 control = bus_.Read16(CntHAddress(channel));
+        const bool enabled = (control & (1u << 15)) != 0;
+        const u32 timing = (control >> 12) & 0x3u;
+        if (!enabled || timing != 3) {
+            continue;
+        }
+        if (bus_.Read32(DadAddress(channel)) != fifoAddress) {
+            continue;
+        }
+
+        u32 src = bus_.Read32(SadAddress(channel));
+        for (int i = 0; i < 4; ++i) {
+            bus_.Write32(fifoAddress, bus_.Read32(src));
+            src += 4u;
+        }
+        // Source keeps advancing across repeated refills; destination and
+        // the enable bit are left alone - see the declaration's comment.
+        bus_.Write32(SadAddress(channel), src);
+    }
+}
+
 void Dma::RunChannel(int channel) {
     const u16 control = bus_.Read16(CntHAddress(channel));
     const bool wordTransfer = (control & (1u << 10)) != 0;

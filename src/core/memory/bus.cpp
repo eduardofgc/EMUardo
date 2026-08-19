@@ -233,6 +233,14 @@ void Bus::Write16(u32 address, u16 value) {
 
 void Bus::Write32(u32 address, u32 value) {
     address &= ~0x3u;
+    if (address == mem::kIoBase + io::kFifoA && fifoAPush_) {
+        fifoAPush_(value);
+        return;
+    }
+    if (address == mem::kIoBase + io::kFifoB && fifoBPush_) {
+        fifoBPush_(value);
+        return;
+    }
     Write16(address, static_cast<u16>(value & 0xFFFF));
     Write16(address + 2, static_cast<u16>((value >> 16) & 0xFFFF));
 }

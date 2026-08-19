@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include "core/memory/bus.h"
 #include "core/types.h"
 
@@ -24,6 +26,15 @@ public:
     // Cpu::Step(), passing that call's returned cycle count.
     void Tick(int cycles);
 
+    // Direct Sound's FIFO_A/FIFO_B channels each pop one sample whenever
+    // their selected timer (0 or 1, per SOUNDCNT_H) overflows - this is
+    // how Apu finds out that happened, since Apu has no other way to
+    // observe a specific timer's overflow moment (only the *result*,
+    // e.g. the IRQ it may also raise).
+    void SetOverflowCallback(std::function<void(int)> callback) {
+        overflowCallback_ = std::move(callback);
+    }
+
 private:
     Bus& bus_;
 
@@ -31,6 +42,7 @@ private:
     u16 reload_[4]{};
     bool wasRunning_[4]{}; // detects the start bit's 0->1 transition, which is when reload_ gets (re)latched
     int prescalerCounter_[4]{};
+    std::function<void(int)> overflowCallback_;
 
     static u32 CntLAddress(int index);
     static u32 CntHAddress(int index);

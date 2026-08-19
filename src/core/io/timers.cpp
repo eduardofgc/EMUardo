@@ -100,6 +100,9 @@ bool Timers::TickOne(int index) {
     if (control & (1u << 6)) {
         bus_.RequestInterrupt(kOverflowIrq[index]);
     }
+    if (overflowCallback_) {
+        overflowCallback_(index);
+    }
     return true;
 }
 
