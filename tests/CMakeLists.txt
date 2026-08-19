@@ -60,3 +60,9 @@ add_executable(gba_tests_ppu_affine
 )
 target_link_libraries(gba_tests_ppu_affine PRIVATE gba_core)
 add_test(NAME ppu_affine_test COMMAND gba_tests_ppu_affine)
+
+add_executable(gba_tests_ppu_windows_blend
+    test_ppu_windows_blend.cpp
+)
+target_link_libraries(gba_tests_ppu_windows_blend PRIVATE gba_core)
+add_test(NAME ppu_windows_blend_test COMMAND gba_tests_ppu_windows_blend)

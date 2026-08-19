@@ -55,6 +55,17 @@ private:
     std::array<LayerPixel, kScreenWidth * kScreenHeight> objLayer_{};
     std::array<u8, kScreenWidth * kScreenHeight> objPriority_{};
 
+    // Set wherever an OBJ-window-mode sprite (attr0 OBJ Mode == 2) is
+    // opaque - such sprites draw nothing themselves, they only carve out a
+    // region where WINOUT's "inside OBJ window" enable bits apply instead
+    // of its "outside all windows" bits. Set wherever the topmost OBJ
+    // pixel came from a semi-transparent sprite (OBJ Mode == 1), which
+    // forces alpha-blending with whatever is beneath it regardless of
+    // BLDCNT's own effect-mode selection. Both rebuilt from scratch every
+    // RenderSprites() call.
+    std::array<bool, kScreenWidth * kScreenHeight> objWindowMask_{};
+    std::array<bool, kScreenWidth * kScreenHeight> objSemiTransparent_{};
+
     // Mode 3: BG2 is a single 240x160 16-bit-color bitmap, one pixel per
     // VRAM halfword, no palette indirection. GBATEK "BG Mode 3 - 16bit
     // Bitmap". This is the simplest of the six modes and the natural
@@ -104,19 +115,21 @@ private:
     // than HOFS/VOFS. GBATEK "BG Rotation/Scaling".
     void RenderAffineBackground(int bgIndex);
 
-    // Fills objLayer_/objPriority_ from OAM - all 128 sprites, both
-    // regular and affine (rotate/scale). Processes OAM back-to-front
-    // (index 127 down to 0) so that, per GBATEK, lower OAM index wins ties
-    // at equal priority.
-    //
-    // TODO: OBJ window mode, semi-transparent OBJ mode, mosaic - still
-    // ignored.
+    // Fills objLayer_/objPriority_/objWindowMask_/objSemiTransparent_ from
+    // OAM - all 128 sprites, both regular and affine (rotate/scale).
+    // Processes OAM back-to-front (index 127 down to 0) so that, per
+    // GBATEK, lower OAM index wins ties at equal priority. Honors each
+    // sprite's OBJ Mode (normal / semi-transparent / OBJ-window) and
+    // mosaic flag.
     void RenderSprites();
 
     // Combines up to 4 BG layers (using each BG's configured priority,
     // lower BG index wins ties) and the OBJ layer (which wins ties against
     // a same-priority BG) into framebuffer_. Pixels with nothing opaque
-    // fall back to the backdrop color (palette entry 0).
+    // fall back to the backdrop color (palette entry 0). Also applies,
+    // when enabled: Win0/Win1/OBJ-window per-pixel layer visibility, and
+    // BLDCNT/BLDALPHA/BLDY color special effects (alpha blend, brightness
+    // increase/decrease, and forced blending under semi-transparent OBJs).
     void CompositeLayers(const bool bgEnabled[4], const u8 bgPriority[4], bool objEnabled);
 
     // TODO: per-scanline timing (see Step()'s TODO) - affine reference
