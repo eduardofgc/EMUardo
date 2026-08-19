@@ -29,6 +29,12 @@ public:
     // current button state before RunFrame().
     void SetKeyState(u16 pressedMask) { bus_.SetKeyState(pressedMask); }
 
+    // Forwards to Bus::FlushSave - RunFrame() already calls this once per
+    // VBlank, so games that autosave mid-play are covered automatically;
+    // call this explicitly on shutdown too, so a game that only writes
+    // its save right before quitting isn't lost.
+    bool FlushSave() { return bus_.FlushSave(); }
+
 private:
     // Declaration order matters here: members construct in this order
     // regardless of the constructor's initializer-list order, and cpu_/

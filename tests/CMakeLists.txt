@@ -72,3 +72,9 @@ add_executable(gba_tests_ppu_bitmap_sprites
 )
 target_link_libraries(gba_tests_ppu_bitmap_sprites PRIVATE gba_core)
 add_test(NAME ppu_bitmap_sprites_test COMMAND gba_tests_ppu_bitmap_sprites)
+
+add_executable(gba_tests_save
+    test_save.cpp
+)
+target_link_libraries(gba_tests_save PRIVATE gba_core)
+add_test(NAME save_test COMMAND gba_tests_save)

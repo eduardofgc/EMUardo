@@ -25,6 +25,8 @@ namespace mem {
     constexpr u32 kVramBase    = 0x0600'0000; // 96 KB video RAM
     constexpr u32 kOamBase     = 0x0700'0000; // 1 KB object attribute memory
     constexpr u32 kRomBase     = 0x0800'0000; // cartridge ROM, up to 32 MB
+    constexpr u32 kEepromBase  = 0x0D00'0000; // EEPROM save chip - only meaningful when one is detected
+    constexpr u32 kSramBase    = 0x0E00'0000; // SRAM or Flash save chip - only one is ever present per cart
 }
 
 // I/O register byte offsets within the I/O region (GBATEK "GBA I/O Map").

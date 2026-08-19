@@ -39,6 +39,7 @@ void Emulator::RunFrame() {
             // finished image, matching what real game code expects.
             ppu_.RenderFrame();
             dma_.OnVBlank();
+            bus_.FlushSave();
         } else if (line == 0) {
             u16 dispstat = bus_.Read16(mem::kIoBase + io::kDispstat);
             dispstat = static_cast<u16>(dispstat & ~0x1u); // clear VBlank flag for the new frame

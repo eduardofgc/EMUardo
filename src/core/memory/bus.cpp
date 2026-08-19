@@ -5,6 +5,21 @@
 
 namespace gba {
 
+namespace {
+// "foo/bar.gba" -> "foo/bar.sav" - same directory, same base name, so the
+// save file is easy to find next to the ROM (matching every other GBA
+// emulator's convention). A ROM with no extension just gets ".sav"
+// appended.
+std::string DeriveSavePath(const std::string& romPath) {
+    const std::size_t lastSlash = romPath.find_last_of("/\\");
+    const std::size_t lastDot = romPath.find_last_of('.');
+    if (lastDot != std::string::npos && (lastSlash == std::string::npos || lastDot > lastSlash)) {
+        return romPath.substr(0, lastDot) + ".sav";
+    }
+    return romPath + ".sav";
+}
+} // namespace
+
 Bus::Bus() {
     InstallHleBios();
     // KEYINPUT is active-LOW; io_ defaults to all zero bits, which would
@@ -67,7 +82,18 @@ bool Bus::LoadRom(const std::string& path) {
         return false;
     }
 
+    save_.DetectFromRom(rom_);
+    savePath_ = DeriveSavePath(path);
+    save_.LoadFromFile(savePath_); // no existing .sav file is fine - fresh/erased save data is already in place
+
     return true;
+}
+
+bool Bus::FlushSave() {
+    if (!save_.IsDirty()) {
+        return true;
+    }
+    return save_.SaveToFile(savePath_);
 }
 
 // NOTE on the current state of this function: open-bus behavior for
@@ -105,6 +131,8 @@ u8 Bus::Read8(u32 address) const {
             const std::size_t offset = address & (kMaxRomSize - 1);
             return offset < rom_.size() ? rom_[offset] : 0;
         }
+        case mem::kSramBase:
+            return save_.ReadSram(address);
         default:
             // TODO: BIOS reads, open bus for genuinely unmapped regions.
             return 0;
@@ -113,6 +141,13 @@ u8 Bus::Read8(u32 address) const {
 
 u16 Bus::Read16(u32 address) const {
     address &= ~0x1u; // halfword-aligned
+    if (save_.type() == SaveMemory::Type::kEeprom && (address & 0x0F00'0000) == mem::kEepromBase) {
+        // EEPROM is a 1-bit-per-halfword serial protocol, not a normal
+        // byte-addressable region - see SaveMemory::ReadEeprom(). Handled
+        // here rather than in Read8 because composing it from two byte
+        // reads would double-count protocol bits.
+        return save_.ReadEeprom();
+    }
     return static_cast<u16>(Read8(address) | (Read8(address + 1) << 8));
 }
 
@@ -164,6 +199,9 @@ void Bus::Write8(u32 address, u8 value) {
         case mem::kOamBase:
             oam_[address & (kOamSize - 1)] = value;
             return;
+        case mem::kSramBase:
+            save_.WriteSram(address, value);
+            return;
         default:
             // ROM writes are ignored (or used for GPIO/RTC on some carts -
             // not a concern until much later).
@@ -173,6 +211,10 @@ void Bus::Write8(u32 address, u8 value) {
 
 void Bus::Write16(u32 address, u16 value) {
     address &= ~0x1u;
+    if (save_.type() == SaveMemory::Type::kEeprom && (address & 0x0F00'0000) == mem::kEepromBase) {
+        save_.WriteEeprom(value);
+        return;
+    }
     Write8(address, static_cast<u8>(value & 0xFF));
     Write8(address + 1, static_cast<u8>((value >> 8) & 0xFF));
 }
