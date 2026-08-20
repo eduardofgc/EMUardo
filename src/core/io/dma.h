@@ -52,6 +52,27 @@ private:
     // every single cycle it stays set).
     bool armed_[4]{};
 
+    // Special-timing (sound FIFO) source-address tracking for DMA1/DMA2.
+    // GBATEK "DMA Transfer Channels": "The SAD, DAD, and CNT_L registers
+    // are holding the initial start addresses... the hardware does NOT
+    // change the content of these registers during or after the
+    // transfer." Real hardware keeps a separate *internal* read position
+    // that advances across repeated FIFO-triggered refills - DMAxSAD
+    // itself always reads back whatever the game last wrote, unchanged.
+    // specialSrc_ is that internal position: latched fresh from DMAxSAD
+    // only when a channel transitions from disarmed to armed for special
+    // timing (matching the real "disable, rewrite SAD, re-enable" reset
+    // sequence real games use - see m4aSoundVSync in pret/pokeemerald's
+    // m4a_1.s for a concrete example), advanced by 4 bytes per word
+    // within each refill, and never written back to the bus. The latch
+    // itself happens in CheckImmediate() (polled every CPU cycle) rather
+    // than in OnFifoRequest() - a disable-then-re-enable reset typically
+    // completes entirely within one interrupt handler, faster than the
+    // next FIFO-empty event, so OnFifoRequest() alone would usually miss
+    // the disabled window and never notice the reset happened at all.
+    u32 specialSrc_[4]{};
+    bool specialArmed_[4]{};
+
     static u32 SadAddress(int channel);
     static u32 DadAddress(int channel);
     static u32 CntLAddress(int channel);

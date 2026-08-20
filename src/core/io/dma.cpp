@@ -25,8 +25,24 @@ void Dma::CheckImmediate() {
 
         if (!enabled) {
             armed_[ch] = false;
+            specialArmed_[ch] = false;
             continue;
         }
+
+        // Special-timing (sound FIFO) source-position latch: this has to
+        // happen here, polled every CPU cycle, rather than lazily inside
+        // OnFifoRequest() - a disable-then-re-enable reset cycle (see
+        // specialSrc_'s declaration comment) typically completes entirely
+        // within one interrupt handler, faster than the next FIFO-empty
+        // event that would otherwise be the only chance to notice it.
+        // Missing it here meant the "disabled" state was invisible and
+        // the internal read position just kept marching across a reset
+        // the game intended to restart from a fresh SAD.
+        if (timing == 3 && (ch == 1 || ch == 2) && !specialArmed_[ch]) {
+            specialSrc_[ch] = bus_.Read32(SadAddress(ch));
+            specialArmed_[ch] = true;
+        }
+
         if (armed_[ch]) {
             continue; // already fired for this enable - VBlank/HBlank/special channels wait elsewhere
         }
@@ -58,34 +74,41 @@ void Dma::OnFifoRequest(u32 fifoAddress) {
     // actually matters is which channel's destination is pointed at this
     // particular FIFO, so check both.
     //
-    // Confirmed against mGBA (a reference-accurate emulator): each trigger
-    // starts fresh from whatever the CPU currently has written to SAD -
-    // there's no internal position that carries over and advances *across*
-    // separate trigger events (that was our bug: both the original code,
-    // which wrote an advancing pointer back to the visible SAD register,
-    // and an earlier attempted fix that tracked it internally instead,
-    // both assumed persistence that real hardware simply doesn't have).
-    // Within one single trigger's 4-word transfer the source does step by
-    // 4 bytes per word - that part just isn't kept anywhere afterward. The
-    // game is responsible for keeping fresh data at that address (or
-    // explicitly rewriting SAD) between refills.
+    // See specialSrc_/specialArmed_'s declaration for why this tracks an
+    // internal read position instead of just re-reading DMAxSAD fresh
+    // every call: real games' sound engines rely on that register staying
+    // frozen at whatever they wrote (e.g. to detect/manage buffer
+    // position themselves), while the actual DMA hardware keeps streaming
+    // forward through a much larger source buffer underneath.
     for (int channel = 1; channel <= 2; ++channel) {
         const u16 control = bus_.Read16(CntHAddress(channel));
         const bool enabled = (control & (1u << 15)) != 0;
         const u32 timing = (control >> 12) & 0x3u;
         if (!enabled || timing != 3) {
+            specialArmed_[channel] = false;
             continue;
         }
         if (bus_.Read32(DadAddress(channel)) != fifoAddress) {
-            continue; // armed, but for the other FIFO
+            continue; // armed, but for the other FIFO - leave its state alone
         }
 
-        u32 src = bus_.Read32(SadAddress(channel));
+        if (!specialArmed_[channel]) {
+            // Normally already latched by CheckImmediate() (see its
+            // comment) - this is just a safety net for the rare case
+            // where a FIFO-empty event fires before CheckImmediate() gets
+            // a chance to observe a same-cycle re-enable.
+            specialSrc_[channel] = bus_.Read32(SadAddress(channel));
+            specialArmed_[channel] = true;
+        }
+
+        u32 src = specialSrc_[channel];
         for (int i = 0; i < 4; ++i) {
             bus_.Write32(fifoAddress, bus_.Read32(src));
             src += 4u;
         }
-        // SAD is intentionally never written back - see the comment above.
+        specialSrc_[channel] = src;
+        // SAD/DAD/CNT_L are intentionally never written back - see the
+        // declaration's comment.
     }
 }
 
