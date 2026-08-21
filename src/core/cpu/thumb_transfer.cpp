@@ -24,7 +24,7 @@ void Cpu::ThumbLoadStoreRegOffset(u16 instruction) {
     const u32 address = GetRegister(static_cast<int>(rb)) + GetRegister(static_cast<int>(ro));
 
     if (load) {
-        SetRegister(static_cast<int>(rd), byteTransfer ? bus_.Read8(address) : bus_.Read32(address));
+        SetRegister(static_cast<int>(rd), byteTransfer ? bus_.Read8(address) : ReadRotatedWord(address));
     } else {
         const u32 value = GetRegister(static_cast<int>(rd));
         if (byteTransfer) {
@@ -76,7 +76,7 @@ void Cpu::ThumbLoadStoreImmOffset(u16 instruction) {
     const u32 address = GetRegister(static_cast<int>(rb)) + offset;
 
     if (load) {
-        SetRegister(static_cast<int>(rd), byteTransfer ? bus_.Read8(address) : bus_.Read32(address));
+        SetRegister(static_cast<int>(rd), byteTransfer ? bus_.Read8(address) : ReadRotatedWord(address));
     } else {
         const u32 value = GetRegister(static_cast<int>(rd));
         if (byteTransfer) {
@@ -112,7 +112,9 @@ void Cpu::ThumbSpRelativeLoadStore(u16 instruction) {
     const u32 address = GetRegister(13) + word8 * 4u;
 
     if (load) {
-        SetRegister(static_cast<int>(rd), bus_.Read32(address));
+        // SP is conventionally kept word-aligned, but nothing enforces
+        // that in hardware - the rotate applies here too if it isn't.
+        SetRegister(static_cast<int>(rd), ReadRotatedWord(address));
     } else {
         bus_.Write32(address, GetRegister(static_cast<int>(rd)));
     }

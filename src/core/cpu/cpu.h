@@ -118,6 +118,17 @@ private:
     u32 GetImmediateOperand2(u32 instruction, bool& carryOut) const;
     u32 GetRegisterOperand2(u32 instruction, bool& carryOut) const;
 
+    // Real hardware doesn't reject a misaligned word load - it reads the
+    // word at (address & ~3) as usual, then rotates the result right by
+    // 8 * (address & 3) bits before it lands in the destination register
+    // (GBATEK doesn't spell this out explicitly, but it's well-documented
+    // ARM7TDMI behavior and matched by every mainstream GBA emulator).
+    // Shared by every ARM/Thumb encoding that can load a word from an
+    // address built out of an arbitrary base register (LDR, SWP) - not
+    // used for LDM/STM or the PC/SP-relative Thumb loads, since those
+    // addresses are always word-aligned by construction.
+    u32 ReadRotatedWord(u32 address) const;
+
     // --- Instruction class handlers --------------------------------------
     void ArmDataProcessing(u32 instruction);
     void ArmMultiply(u32 instruction);

@@ -14,6 +14,12 @@ int PopCount16(u16 value) {
 }
 } // namespace
 
+u32 Cpu::ReadRotatedWord(u32 address) const {
+    const u32 value = bus_.Read32(address);
+    const u32 rotateBits = (address & 0x3u) * 8u;
+    return rotateBits == 0 ? value : ((value >> rotateBits) | (value << (32u - rotateBits)));
+}
+
 void Cpu::ArmSingleDataSwap(u32 instruction) {
     const bool byteSwap = ((instruction >> 22) & 1u) != 0;
     const u32 rn = (instruction >> 16) & 0xFu;
@@ -26,9 +32,7 @@ void Cpu::ArmSingleDataSwap(u32 instruction) {
         bus_.Write8(address, static_cast<u8>(GetRegister(static_cast<int>(rm))));
         SetRegister(static_cast<int>(rd), temp);
     } else {
-        // TODO: real hardware rotates misaligned word reads; assuming
-        // aligned addresses for now (true for well-behaved code).
-        const u32 temp = bus_.Read32(address);
+        const u32 temp = ReadRotatedWord(address);
         bus_.Write32(address, GetRegister(static_cast<int>(rm)));
         SetRegister(static_cast<int>(rd), temp);
     }
@@ -108,7 +112,7 @@ void Cpu::ArmSingleDataTransfer(u32 instruction) {
     const u32 address = preIndex ? (up ? base + offset : base - offset) : base;
 
     if (load) {
-        const u32 value = byteTransfer ? bus_.Read8(address) : bus_.Read32(address);
+        const u32 value = byteTransfer ? bus_.Read8(address) : ReadRotatedWord(address);
         SetRegister(static_cast<int>(rd), value);
         if (rd == 15) {
             registers_[15] &= ~0x3u; // keep PC word-aligned after a load into it
@@ -159,10 +163,23 @@ void Cpu::ArmBlockDataTransfer(u32 instruction) {
         writebackAddress = base - static_cast<u32>(numRegs) * 4;
     }
 
-    // TODO: loadPsrOrForceUser's "force user-mode registers" variant
-    // (S bit set, r15 not in list) isn't implemented - it's rarely used
-    // outside OS-level context switches, which the GBA has no use for.
     const bool restoreCpsrFromSpsr = loadPsrOrForceUser && load && ((regList & 0x8000u) != 0);
+
+    // GBATEK "Block Data Transfer (LDM,STM)": when the S bit is set and
+    // this isn't "LDM with r15 in the list" (that case restores CPSR from
+    // SPSR instead, handled below), the transferred registers are read
+    // from - or written to - the User-mode bank regardless of the CPU's
+    // actual current mode. Real OSes use this to save/restore user-mode
+    // context from a privileged handler; the GBA has no OS, but some
+    // games' own interrupt/context-switch code still does it. The base
+    // register itself is exempt from this redirection - `base` above was
+    // already read from the current mode's Rn, and the writeback below
+    // (after switching back) writes it there too, never to User's copy.
+    const bool forceUserBank = loadPsrOrForceUser && !restoreCpsrFromSpsr;
+    const CpuMode savedMode = GetMode();
+    if (forceUserBank) {
+        SwitchMode(CpuMode::User);
+    }
 
     u32 address = startAddress;
     for (int i = 0; i < 16; ++i) {
@@ -175,6 +192,10 @@ void Cpu::ArmBlockDataTransfer(u32 instruction) {
             bus_.Write32(address, GetRegister(i));
         }
         address += 4;
+    }
+
+    if (forceUserBank) {
+        SwitchMode(savedMode);
     }
 
     if (restoreCpsrFromSpsr) {
