@@ -173,12 +173,16 @@ private:
     //
     // TODO: only the SWI numbers games rely on most heavily for not
     // hanging (Halt/IntrWait), that are simple to implement natively
-    // (Div, CpuSet), or that graphics decompression depends on (LZ77) are
-    // covered. Notably NOT implemented: Huffman/RL decompression and the
-    // Diff8bit/16bitUnFilter calls some games use for compressed graphics
-    // data - those will currently silently do nothing, so tiles/maps
-    // compressed with those specific formats will show as garbage or
-    // blank until that's added.
+    // (Div, CpuSet), or that graphics decompression depends on (LZ77, RL,
+    // the Diff8/16bitUnFilter delta filters) are covered. Notably NOT
+    // implemented: Huffman decompression - unlike the others, its exact
+    // byte layout (tree-table size field, root/child node addressing) has
+    // enough fiddly detail that getting it wrong from memory risks
+    // silently producing corrupted output rather than the obviously-blank
+    // result an unimplemented call gives today, so it's being left until
+    // there's a real Huffman-compressed sample (or the precise spec) to
+    // verify a decoder against, rather than shipped as an unverified
+    // guess. Games using it will still show garbage/blank tiles for now.
     bool TryHleSwi(u32 number);
     void HleRegisterRamReset();
     void HleHalt();
@@ -189,6 +193,9 @@ private:
     void HleCpuSet();
     void HleCpuFastSet();
     void HleLz77UnComp();
+    void HleRlUnComp();
+    void HleDiff8bitUnFilter();
+    void HleDiff16bitUnFilter();
     void HleObjAffineSet();
 
     // True between a Halt/IntrWait-family SWI and the next enabled

@@ -21,14 +21,18 @@ bool Cpu::TryHleSwi(u32 number) {
         case 0x0F: HleObjAffineSet();      return true; // ObjAffineSet
         case 0x11: HleLz77UnComp();       return true; // LZ77UnCompWRAM
         case 0x12: HleLz77UnComp();       return true; // LZ77UnCompVRAM - see HleLz77UnComp's comment
+        case 0x14: HleRlUnComp();         return true; // RLUnCompWRAM
+        case 0x15: HleRlUnComp();         return true; // RLUnCompVRAM - same non-reason as LZ77's WRAM/VRAM split
+        case 0x16: HleDiff8bitUnFilter(); return true; // Diff8bitUnFilterWRAM
+        case 0x17: HleDiff8bitUnFilter(); return true; // Diff8bitUnFilterVRAM
+        case 0x18: HleDiff16bitUnFilter(); return true; // Diff16bitUnFilter
         default:
-            // Not HLE'd - Huffman/RL decompression, Diff8bit/16bitUnFilter,
+            // Not HLE'd - Huffman decompression (see its TODO in cpu.h),
             // Sqrt, ArcTan, BgAffineSet, sound-related calls, and others
             // aren't implemented. Falls back to Arm/ThumbSoftwareInterrupt's
             // real EnterException(Supervisor, 0x08) path, which currently
             // has no real BIOS code to run there either - the call will
-            // effectively do nothing useful. See the TODO on this
-            // function's declaration in cpu.h.
+            // effectively do nothing useful.
             return false;
     }
 }
@@ -211,6 +215,89 @@ void Cpu::HleLz77UnComp() {
                 ++written;
             }
         }
+    }
+}
+
+void Cpu::HleRlUnComp() {
+    // RLUnCompWram/VRAM (SWI 0x14/0x15) - GBATEK "BIOS Decompression
+    // Functions". Header (4 bytes at R0): bits8-31 = decompressed size in
+    // bytes, bits4-7 = compression type (3 = run-length, not checked).
+    // Then a stream of blocks, each starting with a flag byte: bit7 clear
+    // means the next (flag&0x7F)+1 bytes that follow are copied verbatim;
+    // bit7 set means ONE byte follows and gets repeated (flag&0x7F)+3
+    // times.
+    const u32 srcAddr = GetRegister(0);
+    const u32 dstAddr = GetRegister(1);
+
+    const u32 header = bus_.Read32(srcAddr);
+    const u32 decompressedSize = header >> 8;
+
+    u32 src = srcAddr + 4;
+    u32 dst = dstAddr;
+    u32 written = 0;
+
+    while (written < decompressedSize) {
+        const u8 flag = bus_.Read8(src++);
+        if (flag & 0x80u) {
+            const u8 value = bus_.Read8(src++);
+            const u32 length = (flag & 0x7Fu) + 3u;
+            for (u32 i = 0; i < length && written < decompressedSize; ++i) {
+                bus_.Write8(dst++, value);
+                ++written;
+            }
+        } else {
+            const u32 length = (flag & 0x7Fu) + 1u;
+            for (u32 i = 0; i < length && written < decompressedSize; ++i) {
+                bus_.Write8(dst++, bus_.Read8(src++));
+                ++written;
+            }
+        }
+    }
+}
+
+void Cpu::HleDiff8bitUnFilter() {
+    // Diff8bitUnFilterWram/VRAM (SWI 0x16/0x17) - GBATEK "BIOS
+    // Decompression Functions". Not actually compression - a delta
+    // filter. Header (4 bytes at R0): bits8-31 = decompressed size in
+    // bytes. Each output byte is the running (8-bit wraparound) sum of
+    // every input byte up to and including it - the inverse of an
+    // encoder that stored each byte as the difference from the one
+    // before it, which tends to compress well afterward with a generic
+    // compressor since smoothly-varying data (gradients, audio-like
+    // curves) turns into mostly-small values.
+    const u32 srcAddr = GetRegister(0);
+    const u32 dstAddr = GetRegister(1);
+
+    const u32 header = bus_.Read32(srcAddr);
+    const u32 decompressedSize = header >> 8;
+
+    u32 src = srcAddr + 4;
+    u32 dst = dstAddr;
+    u8 running = 0;
+    for (u32 i = 0; i < decompressedSize; ++i) {
+        running = static_cast<u8>(running + bus_.Read8(src++));
+        bus_.Write8(dst++, running);
+    }
+}
+
+void Cpu::HleDiff16bitUnFilter() {
+    // Diff16bitUnFilter (SWI 0x18) - same idea as Diff8bitUnFilter, just
+    // accumulating 16-bit units instead of bytes (the header's size field
+    // is still a byte count).
+    const u32 srcAddr = GetRegister(0);
+    const u32 dstAddr = GetRegister(1);
+
+    const u32 header = bus_.Read32(srcAddr);
+    const u32 decompressedSize = header >> 8;
+
+    u32 src = srcAddr + 4;
+    u32 dst = dstAddr;
+    u16 running = 0;
+    for (u32 i = 0; i < decompressedSize; i += 2) {
+        running = static_cast<u16>(running + bus_.Read16(src));
+        src += 2;
+        bus_.Write16(dst, running);
+        dst += 2;
     }
 }
 
