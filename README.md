@@ -1,6 +1,6 @@
-# GBArdo
+# EMUardo
 
-GBArdo é um emulador open-source de Game Boy Advance escrito em C++20, 
+EMUardo é um emulador open-source de Game Boy Advance escrito em C++20, 
 construído do zero: um interpretador ARM7TDMI, uma PPU cobrindo os 
 seis modos de background além de sprites, emulação de save de cartucho 
 (SRAM, Flash, EEPROM) e uma implementação de GPIO/RTC para cartuchos 

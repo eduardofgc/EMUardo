@@ -50,7 +50,7 @@ bool App::Init() {
     }
 
     window_ = SDL_CreateWindow(
-        "GBArdo", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        "EMUardo", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         kWindowWidth, kWindowHeight, SDL_WINDOW_SHOWN);
     if (!window_) {
         std::fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -289,7 +289,7 @@ void App::RenderSplash() {
     SDL_Rect iconRect{(kWindowWidth - iconW) / 2, kIconTopMargin, iconW, iconH};
     SDL_RenderCopy(renderer_, splashTexture_, nullptr, &iconRect);
 
-    const std::string title = "GBARDO";
+    const std::string title = "EMUARDO";
     constexpr int kTitleScale = 5;
     constexpr int kTitleGap = 30;
     const int titleWidth = MeasureText(title, kTitleScale);
