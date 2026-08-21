@@ -12,6 +12,18 @@ constexpr u16 kCompleteIrq[4] = {irq::kDma0, irq::kDma1, irq::kDma2, irq::kDma3}
 
 Dma::Dma(Bus& bus) : bus_(bus) {}
 
+void Dma::SaveState(StateWriter& w) const {
+    w.Write(armed_);
+    w.Write(specialSrc_);
+    w.Write(specialArmed_);
+}
+
+void Dma::LoadState(StateReader& r) {
+    r.Read(armed_);
+    r.Read(specialSrc_);
+    r.Read(specialArmed_);
+}
+
 u32 Dma::SadAddress(int channel)  { return mem::kIoBase + kSad[channel]; }
 u32 Dma::DadAddress(int channel)  { return mem::kIoBase + kDad[channel]; }
 u32 Dma::CntLAddress(int channel) { return mem::kIoBase + kCntL[channel]; }

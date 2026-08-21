@@ -26,29 +26,39 @@ Funcionando:
   rotação/escala afim; Modos 3-5 bitmap), sprites OBJ regulares e afins,
   janelas (Win0/Win1/OBJ window), mosaico e efeitos especiais de cor
   (alpha blending, fade de brilho)
-- Timers, DMA, entrada do teclado, controlador de interrupções
+- Timers, DMA (incluindo timing de HBlank/VBlank real), entrada do
+  teclado, controlador de interrupções
+- Timing de instrução real (custos de ciclo S/N/I por tipo de
+  instrução, GBATEK), em vez de um custo fixo de 1 ciclo por instrução
+- PPU renderizada scanline por scanline (não um frame inteiro de uma
+  vez), incluindo o acumulador de ponto de referência afim interno -
+  jogos que dependem de efeitos de raster no meio do frame (splits de
+  scroll cronometrados por HBlank, trocas de paleta no meio da tela,
+  etc.) renderizam corretamente
+- Direct Sound (os dois canais de PCM alimentados por DMA) funcionando
 - Emulação de save de cartucho: SRAM, Flash (64K/128K), EEPROM
   (512B/8K), detectados automaticamente a partir da ROM e persistidos em
   um arquivo `.sav` ao lado dela
 - Emulação da porta GPIO e do chip RTC (relógio de tempo real), para
   cartuchos que usam esse hardware (mais notavelmente a família Pokemon
   Ruby/Sapphire/Emerald)
+- Save states completos (todo o estado da CPU/PPU/Timers/DMA/APU/Bus),
+  além de uma interface com tela de splash, seleção de jogos e menu de
+  pausa
 
 Lacunas conhecidas:
 
-- APU/som estão incompletos, deixando o áudio completamente quebrado
-- A PPU renderiza um frame inteiro de uma vez em vez de scanline por
-  scanline, então jogos que dependem de efeitos de raster no meio do
-  frame (splits de scroll cronometrados por HBlank, trocas de paleta no
-  meio da tela, etc.) vão renderizar incorretamente
-- Sprites ainda não são compostos sobre backgrounds bitmap dos Modos
-  3/4/5
-- Diversas chamadas SWI menos comuns não estão implementadas
-  (descompressão Huffman/RL, Diff8bit/16bitUnFilter, Sqrt, ArcTan,
-  BgAffineSet, ObjAffineSet, chamadas relacionadas a som)
+- Algumas chamadas SWI menos comuns não estão implementadas
+  (descompressão Huffman, BgAffineSet, chamadas relacionadas a som) -
+  jogos que dependem especificamente delas mostrarão gráficos
+  quebrados/ausentes ou travarão nesse ponto
+- O limite de hardware real de sprites por scanline não é modelado (uma
+  linha incomumente carregada de sprites renderiza completa em vez de
+  cortar/degradar como no hardware real)
 - A compatibilidade varia por jogo. Títulos mais simples/antigos têm
   mais chance de rodar corretamente do que títulos tecnicamente
-  ambiciosos
+  ambiciosos (Pokemon Emerald, por exemplo, ainda tem problemas
+  significativos de renderização gráfica)
 
 ## Compilando
 
@@ -75,24 +85,41 @@ Outras opções do CMake:
 ## Executando
 
 ```
+./build/bin/gba_emulator
+```
+
+Sem argumentos, abre a tela de splash e depois a tela de seleção de
+jogos, que lista qualquer arquivo `.gba` encontrado (recursivamente) na
+pasta `roms/` ao lado de onde o comando foi executado - crie essa pasta
+e coloque suas ROMs lá. Passar um caminho de ROM diretamente pula essa
+tela e começa a jogar de imediato:
+
+```
 ./build/bin/gba_emulator caminho/para/rom.gba
 ```
 
 Os dados de save (se o cartucho usar SRAM/Flash/EEPROM) são escritos em
 um arquivo `.sav` ao lado da ROM, com o mesmo nome base do arquivo da
-ROM.
+ROM. Save states (o estado completo da máquina, não só a save do
+cartucho) usam um arquivo `.state` do mesmo jeito, um slot por ROM.
 
 Mapeamento do teclado:
 
-| Botão do GBA | Tecla       |
-|---------------|-------------|
-| A             | Z           |
-| B             | X           |
-| Start         | Enter       |
-| Select        | Shift direito |
-| D-pad         | Setas       |
-| L             | A           |
-| R             | S           |
+| Botão do GBA / Ação      | Tecla         |
+|---------------------------|---------------|
+| A                          | Z             |
+| B                          | X             |
+| Start                      | Enter         |
+| Select                     | Shift direito |
+| D-pad                      | Setas         |
+| L                          | A             |
+| R                          | S             |
+| Pausar / menu de pausa     | Esc           |
+| Save state rápido          | F5            |
+| Load state rápido          | F9            |
+
+O menu de pausa (Esc durante o jogo) também tem as opções Save State /
+Load State / Voltar ao Menu, além de Resume.
 
 ## Testes
 
@@ -109,11 +136,13 @@ arquivos em `tests/` para a convenção usada.
 ## Estrutura do projeto
 
 ```
-src/core/cpu/      Interpretador ARM7TDMI (decoders ARM + Thumb), HLE BIOS
+src/core/cpu/      Interpretador ARM7TDMI (decoders ARM + Thumb), HLE BIOS, timing de ciclo
 src/core/memory/   Bus (mapa de memória central), emulação de save, GPIO/RTC
 src/core/io/       Timers, DMA
 src/core/ppu/      Picture Processing Unit (renderização de background/sprites)
-src/core/          Emulator (dono e condutor da máquina inteira), tipos compartilhados
-src/main.cpp       Loop de janela/input/apresentação via SDL2
+src/core/apu/      Direct Sound (canais PCM alimentados por DMA)
+src/core/          Emulator (dono e condutor da máquina inteira), save states, tipos compartilhados
+src/frontend/      Janela SDL2, splash/menu/pausa, seleção de ROM, save states em arquivo
+src/main.cpp       Ponto de entrada (só constrói e roda a App de src/frontend/)
 tests/             Testes unitários via CTest contra a gba_core
 ```

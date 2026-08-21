@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/memory/bus.h"
+#include "core/state.h"
 #include "core/types.h"
 
 namespace gba {
@@ -47,6 +48,10 @@ public:
     // enable bit - the transfer repeats every time the FIFO empties out,
     // for as long as the game leaves the channel configured this way.
     void OnFifoRequest(u32 fifoAddress);
+
+    // Save-state support.
+    void SaveState(StateWriter& w) const;
+    void LoadState(StateReader& r);
 
 private:
     Bus& bus_;

@@ -7,6 +7,7 @@
 
 #include "core/memory/gpio.h"
 #include "core/memory/save.h"
+#include "core/state.h"
 #include "core/types.h"
 
 namespace gba {
@@ -61,6 +62,15 @@ public:
         fifoAPush_ = std::move(fifoA);
         fifoBPush_ = std::move(fifoB);
     }
+
+    // Save-state support. Deliberately NOT included: bios_ (fixed at
+    // construction by InstallHleBios(), never modified afterward - a
+    // fresh Bus already has the right content), rom_ (the multi-MB
+    // cartridge image - LoadRom() re-reads it from the same file path
+    // before LoadState() runs), savePath_ (recomputed by LoadRom() too),
+    // and fifoAPush_/fifoBPush_ (rewired by Emulator's constructor).
+    void SaveState(StateWriter& w) const;
+    void LoadState(StateReader& r);
 
 private:
     static constexpr std::size_t kBiosSize    = 16 * 1024;

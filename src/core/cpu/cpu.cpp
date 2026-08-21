@@ -37,6 +37,28 @@ void Cpu::Reset() {
             static_cast<u32>(Flag::F);
 }
 
+void Cpu::SaveState(StateWriter& w) const {
+    w.Write(registers_);
+    w.Write(cpsr_);
+    w.Write(r8_12_fiq_);
+    w.Write(r8_12_other_);
+    w.Write(r13_banked_);
+    w.Write(r14_banked_);
+    w.Write(spsr_banked_);
+    w.Write(halted_);
+}
+
+void Cpu::LoadState(StateReader& r) {
+    r.Read(registers_);
+    r.Read(cpsr_);
+    r.Read(r8_12_fiq_);
+    r.Read(r8_12_other_);
+    r.Read(r13_banked_);
+    r.Read(r14_banked_);
+    r.Read(spsr_banked_);
+    r.Read(halted_);
+}
+
 // ---------------------------------------------------------------------
 // Register access / mode switching
 // ---------------------------------------------------------------------

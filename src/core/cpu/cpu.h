@@ -3,6 +3,7 @@
 #include <array>
 
 #include "core/memory/bus.h"
+#include "core/state.h"
 #include "core/types.h"
 
 namespace gba {
@@ -70,6 +71,14 @@ public:
     void SetFlag(Flag flag, bool set);
 
     CpuMode GetMode() const { return static_cast<CpuMode>(cpsr_ & 0x1Fu); }
+
+    // Save-state support: every register file (active + all banked
+    // copies) plus the halted_ flag - everything Step() actually reads to
+    // decide what happens next. Deliberately not part of the state: bus_
+    // (a reference, not owned - Emulator::LoadState() restores the Bus
+    // separately, into the same instance this Cpu already points at).
+    void SaveState(StateWriter& w) const;
+    void LoadState(StateReader& r);
 
 private:
     Bus& bus_;

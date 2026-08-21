@@ -41,6 +41,17 @@ SaveMemory::Type DetectType(const std::vector<u8>& rom) {
 
 SaveMemory::SaveMemory() = default;
 
+void SaveMemory::SaveState(StateWriter& w) const {
+    w.Write(type_);
+    w.WriteVector(data_);
+}
+
+void SaveMemory::LoadState(StateReader& r) {
+    r.Read(type_);
+    r.ReadVector(data_);
+    dirty_ = true; // conservative: make sure a post-load autosave (or exit) actually flushes it once
+}
+
 void SaveMemory::DetectFromRom(const std::vector<u8>& rom) {
     type_ = DetectType(rom);
 

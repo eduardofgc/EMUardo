@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/state.h"
 #include "core/types.h"
 
 namespace gba {
@@ -36,6 +37,16 @@ public:
     // Write8, which is what makes byte writes here correctly no-ops
     // without this class needing to know about it.
     bool TryWrite16(u32 romOffset, u16 value);
+
+    // Save-state support: the port pins/direction/control registers and
+    // the RTC's persistent config register (12h/24h mode, etc.). Not
+    // included: the RTC 3-wire protocol state machine (rtcPhase_ and
+    // friends) - same reasoning as SaveMemory's Flash/EEPROM protocol
+    // state, it's a many-cycles-shorter-than-a-frame transaction, and
+    // rtcTime_ - that's always refreshed from the host's live wall clock
+    // on the next read rather than being state a game "owns".
+    void SaveState(StateWriter& w) const;
+    void LoadState(StateReader& r);
 
 private:
     static constexpr u32 kDataOffset = 0xC4;

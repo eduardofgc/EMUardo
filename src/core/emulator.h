@@ -42,6 +42,16 @@ public:
     // its save right before quitting isn't lost.
     bool FlushSave() { return bus_.FlushSave(); }
 
+    // Full save-state support: everything needed to resume exactly where
+    // play stopped (CPU/PPU/Timers/Dma/Apu/Bus state), serialized into one
+    // flat byte buffer and back. Deliberately NOT part of it: the ROM
+    // itself (the caller must LoadRom() the matching file first - a save
+    // state isn't a portable snapshot, just a resume point for whichever
+    // ROM produced it) and cpu_/ppu_/etc.'s cross-wired callbacks (this
+    // constructor already rewires those on every Emulator, load or not).
+    std::vector<u8> SaveState() const;
+    bool LoadState(const std::vector<u8>& data);
+
 private:
     // Declaration order matters here: members construct in this order
     // regardless of the constructor's initializer-list order, and cpu_/

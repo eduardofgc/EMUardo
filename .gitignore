@@ -5,3 +5,5 @@ compile_commands.json
 *.o
 *.gba
 !roms/homebrew/*.gba
+*.sav
+*.state

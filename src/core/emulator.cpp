@@ -1,5 +1,7 @@
 #include "core/emulator.h"
 
+#include "core/state.h"
+
 namespace gba {
 
 namespace {
@@ -27,6 +29,39 @@ Emulator::Emulator() : cpu_(bus_), ppu_(bus_), timers_(bus_), dma_(bus_), apu_(b
 
 bool Emulator::LoadRom(const std::string& path) {
     return bus_.LoadRom(path);
+}
+
+std::vector<u8> Emulator::SaveState() const {
+    StateWriter w;
+    // A version tag up front, so LoadState() can at least refuse a file
+    // that predates a format change instead of misinterpreting it.
+    constexpr u32 kFormatVersion = 1;
+    w.Write(kFormatVersion);
+    cpu_.SaveState(w);
+    ppu_.SaveState(w);
+    timers_.SaveState(w);
+    dma_.SaveState(w);
+    apu_.SaveState(w);
+    bus_.SaveState(w);
+    w.Write(cyclesSinceLastSample_);
+    return w.data();
+}
+
+bool Emulator::LoadState(const std::vector<u8>& data) {
+    StateReader r(data);
+    u32 formatVersion = 0;
+    r.Read(formatVersion);
+    if (formatVersion != 1) {
+        return false;
+    }
+    cpu_.LoadState(r);
+    ppu_.LoadState(r);
+    timers_.LoadState(r);
+    dma_.LoadState(r);
+    apu_.LoadState(r);
+    bus_.LoadState(r);
+    r.Read(cyclesSinceLastSample_);
+    return r.ok();
 }
 
 void Emulator::RunFrame() {

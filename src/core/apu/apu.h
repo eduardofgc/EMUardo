@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "core/memory/bus.h"
+#include "core/state.h"
 #include "core/types.h"
 
 namespace gba {
@@ -55,6 +56,14 @@ public:
     // buffer - main.cpp drains this once per host frame to feed SDL's
     // audio queue.
     std::vector<s16> DrainSamples();
+
+    // Save-state support. outputBuffer_ (samples generated but not yet
+    // drained by main.cpp) deliberately isn't included - it's at most one
+    // frame's worth (~1/60s), and dropping it across a save/load is
+    // inaudible, not worth the bookkeeping. dmaRefillCallback_ isn't
+    // serializable either - rewired by Emulator's constructor.
+    void SaveState(StateWriter& w) const;
+    void LoadState(StateReader& r);
 
 private:
     Bus& bus_;

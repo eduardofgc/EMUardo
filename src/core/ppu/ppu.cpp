@@ -102,6 +102,30 @@ Ppu::Ppu(Bus& bus) : bus_(bus) {
     framebuffer_.fill(0xFF30'3030);
 }
 
+void Ppu::SaveState(StateWriter& w) const {
+    w.Write(framebuffer_);
+    w.Write(bg2RefX_);
+    w.Write(bg2RefY_);
+    w.Write(bg2LastRawX_);
+    w.Write(bg2LastRawY_);
+    w.Write(bg3RefX_);
+    w.Write(bg3RefY_);
+    w.Write(bg3LastRawX_);
+    w.Write(bg3LastRawY_);
+}
+
+void Ppu::LoadState(StateReader& r) {
+    r.Read(framebuffer_);
+    r.Read(bg2RefX_);
+    r.Read(bg2RefY_);
+    r.Read(bg2LastRawX_);
+    r.Read(bg2LastRawY_);
+    r.Read(bg3RefX_);
+    r.Read(bg3RefY_);
+    r.Read(bg3LastRawX_);
+    r.Read(bg3LastRawY_);
+}
+
 void Ppu::RenderScanline(int line) {
     const u16 dispcnt = bus_.Read16(mem::kIoBase + io::kDispcnt);
     const u32 mode = dispcnt & 0x7u;

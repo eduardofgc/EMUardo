@@ -22,6 +22,22 @@ constexpr u32 kRtcParamBytes[8] = {0, 0, 7, 0, 1, 0, 3, 0};
 constexpr u8 kRtcHour24Bit = 1u << 6;
 } // namespace
 
+void Gpio::SaveState(StateWriter& w) const {
+    w.Write(data_);
+    w.Write(direction_);
+    w.Write(control_);
+    w.Write(chipSioOut_);
+    w.Write(rtcControl_);
+}
+
+void Gpio::LoadState(StateReader& r) {
+    r.Read(data_);
+    r.Read(direction_);
+    r.Read(control_);
+    r.Read(chipSioOut_);
+    r.Read(rtcControl_);
+}
+
 bool Gpio::TryRead8(u32 romOffset, u8& value) const {
     if (romOffset == kControlOffset) {
         value = static_cast<u8>(control_ & 0xFFu);

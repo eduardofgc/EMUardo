@@ -10,6 +10,20 @@ constexpr u16 kOverflowIrq[4] = {irq::kTimer0, irq::kTimer1, irq::kTimer2, irq::
 
 Timers::Timers(Bus& bus) : bus_(bus) {}
 
+void Timers::SaveState(StateWriter& w) const {
+    w.Write(counter_);
+    w.Write(reload_);
+    w.Write(wasRunning_);
+    w.Write(prescalerCounter_);
+}
+
+void Timers::LoadState(StateReader& r) {
+    r.Read(counter_);
+    r.Read(reload_);
+    r.Read(wasRunning_);
+    r.Read(prescalerCounter_);
+}
+
 u32 Timers::CntLAddress(int index) { return mem::kIoBase + kCntL[index]; }
 u32 Timers::CntHAddress(int index) { return mem::kIoBase + kCntH[index]; }
 
