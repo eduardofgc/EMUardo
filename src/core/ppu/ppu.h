@@ -3,6 +3,7 @@
 #include <array>
 
 #include "core/memory/bus.h"
+#include "core/state.h"
 #include "core/types.h"
 
 namespace gba {
@@ -32,6 +33,15 @@ public:
     const std::array<u32, kScreenWidth * kScreenHeight>& Framebuffer() const {
         return framebuffer_;
     }
+
+    // Save-state support: the visible framebuffer (so a reloaded state
+    // shows the right image immediately, rather than one stale/blank
+    // frame until the next RunFrame()) plus the affine reference-point
+    // accumulators - everything else (bgLayer_/objLayer_/etc.) is
+    // per-scanline scratch space RenderScanline() fully overwrites every
+    // call, not persistent state.
+    void SaveState(StateWriter& w) const;
+    void LoadState(StateReader& r);
 
 private:
     Bus& bus_;

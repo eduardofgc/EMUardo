@@ -86,14 +86,21 @@ if(TARGET gba_sanitizers)
 endif()
 
 # ---------------------------------------------------------------------------
-# Main executable
+# Main executable - the SDL-dependent front-end (window/splash/menu/save
+# states) lives in src/frontend/, kept separate from gba_core so the test
+# harness never has to link SDL2 just to exercise the emulator core.
 # ---------------------------------------------------------------------------
 add_executable(gba_emulator
     src/main.cpp
+    src/frontend/app.cpp
+    src/frontend/font.cpp
+    src/frontend/rom_browser.cpp
+    src/frontend/splash_image.cpp
 )
 
 target_link_libraries(gba_emulator PRIVATE
     gba_core
+    gba_warnings
     SDL2::SDL2
     SDL2::SDL2main
 )

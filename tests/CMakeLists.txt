@@ -90,3 +90,9 @@ add_executable(gba_tests_cycle_timing
 )
 target_link_libraries(gba_tests_cycle_timing PRIVATE gba_core)
 add_test(NAME cycle_timing_test COMMAND gba_tests_cycle_timing)
+
+add_executable(gba_tests_save_state
+    test_save_state.cpp
+)
+target_link_libraries(gba_tests_save_state PRIVATE gba_core)
+add_test(NAME save_state_test COMMAND gba_tests_save_state)

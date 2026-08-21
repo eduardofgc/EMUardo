@@ -3,6 +3,7 @@
 #include <functional>
 
 #include "core/memory/bus.h"
+#include "core/state.h"
 #include "core/types.h"
 
 namespace gba {
@@ -34,6 +35,12 @@ public:
     void SetOverflowCallback(std::function<void(int)> callback) {
         overflowCallback_ = std::move(callback);
     }
+
+    // Save-state support. overflowCallback_ isn't part of it - it's
+    // rewired by Emulator's constructor, same as every other cross-link
+    // callback in this codebase.
+    void SaveState(StateWriter& w) const;
+    void LoadState(StateReader& r);
 
 private:
     Bus& bus_;

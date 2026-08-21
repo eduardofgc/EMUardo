@@ -7,6 +7,24 @@ namespace gba {
 
 Apu::Apu(Bus& bus) : bus_(bus) {}
 
+void Apu::SaveState(StateWriter& w) const {
+    w.Write(fifoA_);
+    w.Write(fifoALen_);
+    w.Write(currentA_);
+    w.Write(fifoB_);
+    w.Write(fifoBLen_);
+    w.Write(currentB_);
+}
+
+void Apu::LoadState(StateReader& r) {
+    r.Read(fifoA_);
+    r.Read(fifoALen_);
+    r.Read(currentA_);
+    r.Read(fifoB_);
+    r.Read(fifoBLen_);
+    r.Read(currentB_);
+}
+
 void Apu::PushFifo(std::array<s8, 32>& fifo, int& len, u32 value) {
     // "Data 0-3, Data 0 being located in least significant byte which is
     // replayed first" - GBATEK "Channel A and B - DMA Sound".

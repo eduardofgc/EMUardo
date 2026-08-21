@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "core/state.h"
 #include "core/types.h"
 
 namespace gba {
@@ -56,6 +57,19 @@ public:
     // store as-is.
     bool LoadFromFile(const std::string& path);
     bool SaveToFile(const std::string& path);
+
+    // Save-state support: chip type and the backing store itself - the
+    // actual game-progress data. Deliberately NOT included: the Flash
+    // command-sequence and EEPROM bit-serial protocol state machines
+    // below - both complete within a handful of CPU cycles, so the odds
+    // of a save-state landing mid-sequence are vanishingly small, and if
+    // it ever did, resetting to idle on load just means the in-flight
+    // command needs to be retried (the same thing that'd happen after a
+    // real hardware reset mid-command) rather than replaying a protocol
+    // negotiation exactly - a fine trade for not serializing five
+    // stopgap fields.
+    void SaveState(StateWriter& w) const;
+    void LoadState(StateReader& r);
 
 private:
     Type type_ = Type::kNone;

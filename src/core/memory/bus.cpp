@@ -60,6 +60,28 @@ void Bus::InstallHleBios() {
     writeWord(0x34, 0x0300'7FFCu);
 }
 
+void Bus::SaveState(StateWriter& w) const {
+    w.Write(ewram_);
+    w.Write(iwram_);
+    w.Write(io_);
+    w.Write(palette_);
+    w.Write(vram_);
+    w.Write(oam_);
+    save_.SaveState(w);
+    gpio_.SaveState(w);
+}
+
+void Bus::LoadState(StateReader& r) {
+    r.Read(ewram_);
+    r.Read(iwram_);
+    r.Read(io_);
+    r.Read(palette_);
+    r.Read(vram_);
+    r.Read(oam_);
+    save_.LoadState(r);
+    gpio_.LoadState(r);
+}
+
 bool Bus::LoadRom(const std::string& path) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file) {
