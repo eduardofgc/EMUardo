@@ -93,7 +93,9 @@ endif()
 add_executable(gba_emulator
     src/main.cpp
     src/frontend/app.cpp
+    src/frontend/app_paths.cpp
     src/frontend/font.cpp
+    src/frontend/key_bindings.cpp
     src/frontend/rom_browser.cpp
     src/frontend/splash_image.cpp
 )

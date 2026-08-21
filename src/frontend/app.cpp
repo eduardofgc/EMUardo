@@ -5,6 +5,7 @@
 #include <fstream>
 
 #include "core/ppu/ppu.h"
+#include "frontend/app_paths.h"
 #include "frontend/font.h"
 #include "frontend/splash_image.h"
 
@@ -74,6 +75,9 @@ bool App::Init() {
         0x0000'00FFu, 0x0000'FF00u, 0x00FF'0000u, 0xFF00'0000u);
     splashTexture_ = SDL_CreateTextureFromSurface(renderer_, splashSurface);
     SDL_FreeSurface(splashSurface);
+
+    keyBindings_ = KeyBindings::Defaults();
+    keyBindings_.LoadFromFile(ResolveAppPath("keybindings.cfg")); // no saved file yet is fine - defaults stand
 
     RefreshRomList();
     splashStartTicks_ = SDL_GetTicks64();
@@ -188,6 +192,13 @@ void App::UpdateSplash(const Uint8* keys) {
 }
 
 void App::UpdateMenu(const Uint8* keys) {
+    if (KeyPressed(keys, SDL_SCANCODE_TAB)) {
+        returnStateAfterControls_ = State::kMenu;
+        controlsSelection_ = 0;
+        awaitingRebind_ = false;
+        state_ = State::kControls;
+        return;
+    }
     if (roms_.empty()) {
         return;
     }
@@ -218,20 +229,7 @@ void App::UpdatePlaying(const Uint8* keys) {
         QuickLoadState();
     }
 
-    // Standard-ish mapping: Z/X for A/B, Enter for Start, Right Shift for
-    // Select, arrow keys for the D-pad, A/S for L/R shoulder buttons.
-    u16 pressedMask = 0;
-    if (keys[SDL_SCANCODE_Z])      pressedMask |= key::kA;
-    if (keys[SDL_SCANCODE_X])      pressedMask |= key::kB;
-    if (keys[SDL_SCANCODE_RETURN]) pressedMask |= key::kStart;
-    if (keys[SDL_SCANCODE_RSHIFT]) pressedMask |= key::kSelect;
-    if (keys[SDL_SCANCODE_RIGHT])  pressedMask |= key::kRight;
-    if (keys[SDL_SCANCODE_LEFT])   pressedMask |= key::kLeft;
-    if (keys[SDL_SCANCODE_UP])     pressedMask |= key::kUp;
-    if (keys[SDL_SCANCODE_DOWN])   pressedMask |= key::kDown;
-    if (keys[SDL_SCANCODE_A])      pressedMask |= key::kL;
-    if (keys[SDL_SCANCODE_S])      pressedMask |= key::kR;
-    emulator_.SetKeyState(pressedMask);
+    emulator_.SetKeyState(keyBindings_.ComputePressedMask(keys));
 
     emulator_.RunFrame();
 
@@ -252,7 +250,7 @@ void App::UpdatePlaying(const Uint8* keys) {
 }
 
 void App::UpdatePaused(const Uint8* keys) {
-    constexpr int kOptionCount = 4; // Resume, Save State, Load State, Return to Menu
+    constexpr int kOptionCount = 5; // Resume, Save State, Load State, Controls, Return to Menu
     if (KeyPressed(keys, SDL_SCANCODE_DOWN)) {
         pauseSelection_ = (pauseSelection_ + 1) % kOptionCount;
     }
@@ -268,9 +266,56 @@ void App::UpdatePaused(const Uint8* keys) {
             case 0: state_ = State::kPlaying; break;
             case 1: QuickSaveState(); break;
             case 2: QuickLoadState(); break;
-            case 3: ReturnToMenu(); break;
+            case 3:
+                returnStateAfterControls_ = State::kPaused;
+                controlsSelection_ = 0;
+                awaitingRebind_ = false;
+                state_ = State::kControls;
+                break;
+            case 4: ReturnToMenu(); break;
             default: break;
         }
+    }
+}
+
+void App::UpdateControls(const Uint8* keys) {
+    if (awaitingRebind_) {
+        if (KeyPressed(keys, SDL_SCANCODE_ESCAPE)) {
+            awaitingRebind_ = false;
+            return;
+        }
+        // Any other just-pressed key becomes the new binding - scanning
+        // the full table rather than a fixed list is the whole point
+        // here, so literally any key the user's keyboard has can be
+        // bound.
+        for (int code = 0; code < SDL_NUM_SCANCODES; ++code) {
+            if (code == SDL_SCANCODE_ESCAPE) continue;
+            if (keys[code] && !prevKeys_[code]) {
+                keyBindings_.Set(kGbaButtons[controlsSelection_].button, static_cast<SDL_Scancode>(code));
+                keyBindings_.SaveToFile(ResolveAppPath("keybindings.cfg"));
+                awaitingRebind_ = false;
+                break;
+            }
+        }
+        return;
+    }
+
+    if (KeyPressed(keys, SDL_SCANCODE_DOWN)) {
+        controlsSelection_ = (controlsSelection_ + 1) % kGbaButtonCount;
+    }
+    if (KeyPressed(keys, SDL_SCANCODE_UP)) {
+        controlsSelection_ = (controlsSelection_ - 1 + kGbaButtonCount) % kGbaButtonCount;
+    }
+    if (KeyPressed(keys, SDL_SCANCODE_RETURN)) {
+        awaitingRebind_ = true;
+    }
+    if (KeyPressed(keys, SDL_SCANCODE_R)) {
+        keyBindings_ = KeyBindings::Defaults();
+        keyBindings_.SaveToFile(ResolveAppPath("keybindings.cfg"));
+        ShowToast("RESET TO DEFAULTS");
+    }
+    if (KeyPressed(keys, SDL_SCANCODE_ESCAPE)) {
+        state_ = returnStateAfterControls_;
     }
 }
 
@@ -318,6 +363,7 @@ void App::RenderMenu() {
         DrawText(renderer_, 30, 100, "NO ROMS FOUND", kScale, kDim);
         DrawText(renderer_, 30, 130, "DROP .GBA FILES INTO:", kScale, kDim);
         DrawText(renderer_, 30, 155, DefaultRomsDirectory(), 1, kDim);
+        DrawText(renderer_, 30, kWindowHeight - 24, "TAB: CONTROLS", 1, kDim);
         SDL_RenderPresent(renderer_);
         return;
     }
@@ -348,7 +394,49 @@ void App::RenderMenu() {
     }
 
     constexpr int kHintScale = 1;
-    DrawText(renderer_, 30, kWindowHeight - 24, "ARROWS: NAVIGATE   ENTER: PLAY", kHintScale, kDim);
+    DrawText(renderer_, 30, kWindowHeight - 24, "ARROWS: NAVIGATE   ENTER: PLAY   TAB: CONTROLS", kHintScale, kDim);
+
+    SDL_RenderPresent(renderer_);
+}
+
+void App::RenderControls() {
+    SDL_SetRenderDrawColor(renderer_, kBackground.r, kBackground.g, kBackground.b, 255);
+    SDL_RenderClear(renderer_);
+
+    constexpr int kTitleScale = 3;
+    DrawText(renderer_, 30, 30, "CONTROLS", kTitleScale, kWhite);
+
+    constexpr int kRowScale = 2;
+    constexpr int kRowHeight = 30;
+    constexpr int kListTop = 90;
+    for (int i = 0; i < kGbaButtonCount; ++i) {
+        const int y = kListTop + i * kRowHeight;
+        const bool selected = (i == controlsSelection_);
+        const SDL_Color color = selected ? kAccent : kWhite;
+        if (selected) {
+            DrawText(renderer_, 24, y, ">", kRowScale, kAccent);
+        }
+        DrawText(renderer_, 50, y, kGbaButtons[i].label, kRowScale, color);
+
+        const char* keyName = SDL_GetScancodeName(keyBindings_.Get(kGbaButtons[i].button));
+        const std::string keyLabel = (keyName && keyName[0]) ? keyName : "(NONE)";
+        const bool showingPrompt = selected && awaitingRebind_;
+        DrawText(renderer_, 260, y, showingPrompt ? "PRESS A KEY..." : keyLabel, kRowScale,
+                 showingPrompt ? kAccent : kDim);
+    }
+
+    constexpr int kHintScale = 1;
+    DrawText(renderer_, 30, kWindowHeight - 36, "ENTER: REBIND   R: RESET ALL TO DEFAULTS", kHintScale, kDim);
+    DrawText(renderer_, 30, kWindowHeight - 20, "ESC: BACK (OR CANCEL REBIND)", kHintScale, kDim);
+
+    if (SDL_GetTicks64() < toastExpiryTicks_) {
+        constexpr int kScale = 2;
+        const int width = MeasureText(toastMessage_, kScale);
+        SDL_Rect backdrop{(kWindowWidth - width) / 2 - 10, kWindowHeight - 90, width + 20, 30};
+        SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 180);
+        SDL_RenderFillRect(renderer_, &backdrop);
+        DrawText(renderer_, (kWindowWidth - width) / 2, kWindowHeight - 82, toastMessage_, kScale, kWhite);
+    }
 
     SDL_RenderPresent(renderer_);
 }
@@ -382,8 +470,8 @@ void App::RenderPauseOverlay() {
     SDL_Rect fullscreen{0, 0, kWindowWidth, kWindowHeight};
     SDL_RenderFillRect(renderer_, &fullscreen);
 
-    static const char* kOptions[] = {"RESUME", "SAVE STATE", "LOAD STATE", "RETURN TO MENU"};
-    constexpr int kOptionCount = 4;
+    static const char* kOptions[] = {"RESUME", "SAVE STATE", "LOAD STATE", "CONTROLS", "RETURN TO MENU"};
+    constexpr int kOptionCount = 5;
     constexpr int kScale = 3;
     constexpr int kRowHeight = 40;
     const int boxHeight = kOptionCount * kRowHeight + 40;
@@ -427,10 +515,11 @@ void App::Run() {
         const Uint8* keys = SDL_GetKeyboardState(nullptr);
 
         switch (state_) {
-            case State::kSplash: UpdateSplash(keys); RenderSplash(); break;
-            case State::kMenu:   UpdateMenu(keys);   RenderMenu();   break;
-            case State::kPlaying: UpdatePlaying(keys); RenderPlaying(); break;
-            case State::kPaused:  UpdatePaused(keys);  RenderPauseOverlay(); break;
+            case State::kSplash:   UpdateSplash(keys);   RenderSplash();       break;
+            case State::kMenu:     UpdateMenu(keys);     RenderMenu();         break;
+            case State::kPlaying:  UpdatePlaying(keys);  RenderPlaying();      break;
+            case State::kPaused:   UpdatePaused(keys);   RenderPauseOverlay(); break;
+            case State::kControls: UpdateControls(keys); RenderControls();     break;
         }
 
         std::memcpy(prevKeys_, keys, sizeof(prevKeys_));

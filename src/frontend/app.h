@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "core/emulator.h"
+#include "frontend/key_bindings.h"
 #include "frontend/rom_browser.h"
 
 namespace gba::frontend {
@@ -33,7 +34,7 @@ public:
     void Run();
 
 private:
-    enum class State { kSplash, kMenu, kPlaying, kPaused };
+    enum class State { kSplash, kMenu, kPlaying, kPaused, kControls };
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;
@@ -51,6 +52,12 @@ private:
     std::vector<RomEntry> roms_;
     int menuSelection_ = 0;
     void RefreshRomList();
+
+    // --- Controls (remapping) screen, reachable from the menu via Tab ---
+    KeyBindings keyBindings_;
+    State returnStateAfterControls_ = State::kMenu; // Tab works from kMenu or kPaused
+    int controlsSelection_ = 0;
+    bool awaitingRebind_ = false;
 
     // --- Playing / pause overlay ---
     std::string currentRomPath_;
@@ -79,11 +86,13 @@ private:
     void UpdateMenu(const Uint8* keys);
     void UpdatePlaying(const Uint8* keys);
     void UpdatePaused(const Uint8* keys);
+    void UpdateControls(const Uint8* keys);
 
     void RenderSplash();
     void RenderMenu();
     void RenderPlaying();
     void RenderPauseOverlay();
+    void RenderControls();
 };
 
 } // namespace gba::frontend

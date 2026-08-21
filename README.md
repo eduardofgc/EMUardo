@@ -1,5 +1,9 @@
 # EMUardo
 
+<p align="center">
+  <img src="assets/logo.png" alt="Logo do EMUardo: um smiley" width="180">
+</p>
+
 EMUardo é um emulador open-source de Game Boy Advance escrito em C++20, 
 construído do zero. Tem um interpretador ARM7TDMI, uma PPU cobrindo os 
 seis modos de background além de sprites, emulação de save de cartucho 
@@ -61,8 +65,6 @@ Lacunas conhecidas:
   mais chance de rodar corretamente do que títulos tecnicamente
   ambiciosos (Pokémon Emerald, por exemplo, ainda tem problemas
   significativos de renderização gráfica)
-- Ainda não há suporte para mapeamento de controles, mas planejo
-  implementar essa funcionalidade logo logo!
 
 ## Compilando
 
@@ -106,7 +108,7 @@ um arquivo `.sav` ao lado da ROM, com o mesmo nome base do arquivo da
 ROM. Save states (o estado completo da máquina, não só a save do
 cartucho) usam um arquivo `.state` do mesmo jeito, um slot por ROM.
 
-Mapeamento do teclado:
+Mapeamento do teclado (padrão, totalmente customizável - veja abaixo):
 
 | Botão do GBA / Ação      | Tecla         |
 |---------------------------|---------------|
@@ -120,10 +122,20 @@ Mapeamento do teclado:
 | Pausar / menu de pausa     | Esc           |
 | Quick Save State           | F5            |
 | Quick Load State           | F9            |
+| Tela de controles          | Tab (no menu ou na pausa) |
 
 O menu de pausa (Esc durante o jogo) também tem as opções de Save State,
-Load State e voltar ao menu. Suporte para controles customizados ainda vai
-vir!
+Load State e voltar ao menu.
+
+### Remapeando controles
+
+Pressione Tab na tela de seleção de jogos (ou escolha "CONTROLS" no menu
+de pausa) para abrir a tela de controles. Lá, use as setas para escolher
+um botão do GBA, Enter para rebindar (a próxima tecla que você apertar
+vira o novo bind e Esc cancela sem alterar nada), e R para restaurar
+todos os binds para o padrão. As mudanças são salvas automaticamente em
+`keybindings.cfg` (na mesma pasta onde `roms/` é procurado) assim que
+você rebinda algo, então persistem entre execuções.
 
 ## Testes
 
@@ -146,7 +158,7 @@ src/core/io/       Timers, DMA
 src/core/ppu/      Picture Processing Unit (renderização de background/sprites)
 src/core/apu/      Direct Sound (canais PCM alimentados por DMA)
 src/core/          Emulator (dono e condutor da máquina inteira), save states, tipos compartilhados
-src/frontend/      Janela SDL2, splash/menu/pausa, seleção de ROM, save states em arquivo
+src/frontend/      Janela SDL2, splash/menu/pausa, seleção de ROM, save states em arquivo, remapeamento de controles
 src/main.cpp       Ponto de entrada (só constrói e roda a App de src/frontend/)
 tests/             Testes unitários via CTest contra a gba_core
 ```

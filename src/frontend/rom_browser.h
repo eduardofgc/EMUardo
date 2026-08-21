@@ -18,12 +18,9 @@ struct RomEntry {
 std::vector<RomEntry> ScanRomsDirectory(const std::string& romsDir);
 
 // The roms/ directory this project's .gitignore already anticipates
-// (`!roms/homebrew/*.gba`), relative to the current working directory -
-// matching how running the emulator itself already works (README's
-// `./build/bin/gba_emulator path/to/rom.gba` is run from the repo root,
-// and that ROM path is CWD-relative too), rather than resolving relative
-// to wherever the executable binary happens to sit (deep in build/bin/,
-// not a place a user would want to keep their ROM collection).
+// (`!roms/homebrew/*.gba`) - see ResolveAppPath (app_paths.h) for how
+// it's located regardless of the working directory the emulator is
+// launched from.
 std::string DefaultRomsDirectory();
 
 } // namespace gba::frontend
