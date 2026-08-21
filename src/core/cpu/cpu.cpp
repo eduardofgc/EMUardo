@@ -245,23 +245,29 @@ int Cpu::Step() {
     }
 
     if (CheckInterrupts()) {
-        return 1; // PC now points at the IRQ vector - don't also fetch/execute this call
+        return 3; // exception entry is a pipeline flush - 2S+1N, same cost as a taken branch
     }
 
     if (GetFlag(Flag::T)) {
         const u16 instruction = FetchThumb();
         registers_[15] += 2; // advance PC before execute - mirrors the ARM path below
+        const int cycles = ComputeThumbCycles(instruction);
         ExecuteThumb(instruction);
-        return 1;
+        return cycles;
     }
 
     const u32 instruction = FetchArm();
     registers_[15] += 4; // advance PC before execute - see cpu.h pipeline note
 
     if (CheckCondition(instruction)) {
+        const int cycles = ComputeArmCycles(instruction);
         ExecuteArm(instruction);
+        return cycles;
     }
-    return 1; // TODO: real per-instruction cycle costs (GBATEK timing tables)
+    // Condition failed: real hardware just burns 1S regardless of what
+    // the instruction would otherwise have cost - it never reaches
+    // execution, so none of its own memory/pipeline costs apply.
+    return 1;
 }
 
 // ---------------------------------------------------------------------

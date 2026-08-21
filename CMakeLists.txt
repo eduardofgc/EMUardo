@@ -65,6 +65,7 @@ add_library(gba_core
     src/core/cpu/thumb_transfer.cpp
     src/core/cpu/thumb_branch.cpp
     src/core/cpu/hle_bios.cpp
+    src/core/cpu/cycle_timing.cpp
     src/core/io/timers.cpp
     src/core/io/dma.cpp
     src/core/memory/bus.cpp

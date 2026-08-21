@@ -104,6 +104,22 @@ private:
     void ExecuteArm(u32 instruction);
     void ExecuteThumb(u16 instruction);
 
+    // Real per-instruction cycle costs (GBATEK "CPU Instruction Cycle
+    // Times"), classified from the instruction's bits alone - called from
+    // Step() right before Execute{Arm,Thumb} so the register reads a few
+    // instructions need for their cost (see MultiplyCycles) see
+    // pre-execution values. We don't model the bus's actual Sequential/
+    // Non-sequential wait-state timing (no part of this codebase does -
+    // Bus::Read/Write are flat, uniform-cost operations throughout), so
+    // this treats every GBATEK "S"/"N"/"I" cycle unit as costing exactly
+    // 1 - accurate to the *relative* cost between instruction types (a
+    // multi-register LDM genuinely costs more than a MOV), but not to
+    // real hardware's absolute cycle counts, which vary by which memory
+    // region is being accessed and the WAITCNT register's wait-state
+    // configuration.
+    int ComputeArmCycles(u32 instruction) const;
+    int ComputeThumbCycles(u16 instruction) const;
+
     // --- Barrel shifter -------------------------------------------------
     // General shift engine shared by data-processing operand2 and the
     // register-offset form of single data transfer. `isImmediateShift`
@@ -173,16 +189,15 @@ private:
     //
     // TODO: only the SWI numbers games rely on most heavily for not
     // hanging (Halt/IntrWait), that are simple to implement natively
-    // (Div, CpuSet), or that graphics decompression depends on (LZ77, RL,
-    // the Diff8/16bitUnFilter delta filters) are covered. Notably NOT
-    // implemented: Huffman decompression - unlike the others, its exact
-    // byte layout (tree-table size field, root/child node addressing) has
-    // enough fiddly detail that getting it wrong from memory risks
+    // (Div, CpuSet), that graphics decompression depends on (LZ77, RL,
+    // the Diff8/16bitUnFilter delta filters), or basic math (Sqrt,
+    // ArcTan/ArcTan2) are covered. Notably NOT implemented: Huffman
+    // decompression and BgAffineSet - both have enough fiddly byte-layout
+    // /fixed-point-format detail that getting it wrong from memory risks
     // silently producing corrupted output rather than the obviously-blank
-    // result an unimplemented call gives today, so it's being left until
-    // there's a real Huffman-compressed sample (or the precise spec) to
-    // verify a decoder against, rather than shipped as an unverified
-    // guess. Games using it will still show garbage/blank tiles for now.
+    // result an unimplemented call gives today, so they're left until
+    // there's a real sample (or the precise spec) to verify against,
+    // rather than shipped as an unverified guess.
     bool TryHleSwi(u32 number);
     void HleRegisterRamReset();
     void HleHalt();
@@ -190,6 +205,9 @@ private:
     void HleVBlankIntrWait();
     void HleDiv();
     void HleDivArm();
+    void HleSqrt();
+    void HleArcTan();
+    void HleArcTan2();
     void HleCpuSet();
     void HleCpuFastSet();
     void HleLz77UnComp();

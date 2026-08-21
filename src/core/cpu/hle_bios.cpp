@@ -16,6 +16,9 @@ bool Cpu::TryHleSwi(u32 number) {
         case 0x05: HleVBlankIntrWait();   return true; // VBlankIntrWait
         case 0x06: HleDiv();              return true;
         case 0x07: HleDivArm();           return true;
+        case 0x08: HleSqrt();             return true;
+        case 0x09: HleArcTan();           return true;
+        case 0x0A: HleArcTan2();          return true;
         case 0x0B: HleCpuSet();           return true;
         case 0x0C: HleCpuFastSet();       return true;
         case 0x0F: HleObjAffineSet();      return true; // ObjAffineSet
@@ -136,6 +139,64 @@ void Cpu::HleDivArm() {
     SetRegister(0, static_cast<u32>(quotient));
     SetRegister(1, static_cast<u32>(remainder));
     SetRegister(3, static_cast<u32>(quotient < 0 ? -quotient : quotient));
+}
+
+void Cpu::HleSqrt() {
+    // Sqrt (SWI 0x08) - r0 = floor(sqrt(r0)), unsigned 32-bit input,
+    // result fits in 16 bits. Uses the standard bit-by-bit integer square
+    // root algorithm rather than casting a floating-point std::sqrt()
+    // result - the latter can land one below the correct answer for some
+    // perfect squares due to rounding, which an exact integer method
+    // never does.
+    const u32 value = GetRegister(0);
+    u32 result = 0;
+    u32 bit = 1u << 30; // highest relevant power-of-4 for a 32-bit input
+    while (bit > value) {
+        bit >>= 2;
+    }
+    u32 remaining = value;
+    while (bit != 0) {
+        if (remaining >= result + bit) {
+            remaining -= result + bit;
+            result = (result >> 1) + bit;
+        } else {
+            result >>= 1;
+        }
+        bit >>= 2;
+    }
+    SetRegister(0, result);
+}
+
+void Cpu::HleArcTan() {
+    // ArcTan (SWI 0x09) - r0 = tan as a signed 1.14 fixed-point value;
+    // result is an angle in the GBA's standard format where 0x10000 = one
+    // full turn (so the documented -0x4000..0x3FFF result range is
+    // exactly -90..+90 degrees). GBATEK notes the real BIOS uses its own
+    // fixed polynomial approximation with a small well-known error; this
+    // uses std::atan() instead, which is more accurate but not a bit-
+    // exact clone of the BIOS's specific quirks - fine for anything using
+    // this to steer a sprite/camera angle, since the difference is far
+    // below what's visually distinguishable at GBA's angle resolution.
+    const s32 raw = static_cast<s32>(static_cast<s16>(GetRegister(0) & 0xFFFFu));
+    const double tan = static_cast<double>(raw) / 16384.0; // 1.14 fixed -> real
+    const double angle = std::atan(tan); // radians, in (-pi/2, pi/2)
+    const auto result = static_cast<s32>(std::lround(angle / (2.0 * kPi) * 65536.0));
+    SetRegister(0, static_cast<u32>(result) & 0xFFFFu);
+}
+
+void Cpu::HleArcTan2() {
+    // ArcTan2 (SWI 0x0A) - r0=x, r1=y as plain signed 16-bit integers;
+    // result is the angle from the origin to (x,y) in the same
+    // 0x0000-0xFFFF = one full turn format as ArcTan. Same "std::atan2
+    // instead of the BIOS's own approximation" tradeoff as ArcTan above.
+    const s32 x = static_cast<s32>(static_cast<s16>(GetRegister(0) & 0xFFFFu));
+    const s32 y = static_cast<s32>(static_cast<s16>(GetRegister(1) & 0xFFFFu));
+    double angle = std::atan2(static_cast<double>(y), static_cast<double>(x)); // (-pi, pi]
+    if (angle < 0.0) {
+        angle += 2.0 * kPi; // normalize to [0, 2pi)
+    }
+    const auto result = static_cast<u32>(std::lround(angle / (2.0 * kPi) * 65536.0));
+    SetRegister(0, result & 0xFFFFu);
 }
 
 void Cpu::HleCpuSet() {

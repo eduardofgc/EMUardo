@@ -339,6 +339,84 @@ void TestDiff16bitUnFilter() {
     Check(bus.Read16(dst + 2) == 0x0010u, "Diff16bitUnFilter test: halfword 1 wraps correctly");
 }
 
+// ---------------------------------------------------------------------
+// Test 8: SWI 0x08 (Sqrt) - exact integer square root, including a
+// perfect square (the case a naive float-sqrt-then-cast could round
+// down on) and a non-perfect square.
+// ---------------------------------------------------------------------
+void TestSqrt() {
+    gba::Bus bus;
+    gba::Cpu cpu(bus);
+
+    const char* path = "/tmp/gba_hle_sqrt_test_rom.bin";
+    std::vector<std::uint8_t> program;
+    PushWord(program, 0xE59F'0000u); // LDR R0, [PC, #0] -> literal at offset 8 (0+8+0)
+    PushWord(program, 0xEF08'0000u); // SWI 0x08 (Sqrt)
+    PushWord(program, 152399025u);   // 12345^2 - perfect square, tests exactness
+    if (!WriteTestRom(path, program)) {
+        std::printf("FAIL: could not write Sqrt test ROM\n");
+        ++failures;
+        return;
+    }
+    bus.LoadRom(path);
+
+    cpu.Step(); // LDR R0, literal
+    Check(cpu.GetRegister(0) == 152399025u, "Sqrt test: R0 loaded correctly");
+    cpu.Step(); // SWI Sqrt
+    Check(cpu.GetRegister(0) == 12345u, "Sqrt test: exact perfect-square root");
+
+    // Non-perfect square: sqrt(150) = 12.24..., floor = 12. ROM writes are
+    // ignored by the Bus (real hardware is read-only there too), so this
+    // needs a second ROM file rather than overwriting the first literal.
+    const char* path2 = "/tmp/gba_hle_sqrt_test_rom2.bin";
+    std::vector<std::uint8_t> program2;
+    PushWord(program2, 0xE59F'0000u);
+    PushWord(program2, 0xEF08'0000u);
+    PushWord(program2, 150u);
+    if (!WriteTestRom(path2, program2)) {
+        std::printf("FAIL: could not write second Sqrt test ROM\n");
+        ++failures;
+        return;
+    }
+    gba::Bus bus2;
+    bus2.LoadRom(path2);
+    gba::Cpu cpu2(bus2);
+    cpu2.Step();
+    cpu2.Step();
+    Check(cpu2.GetRegister(0) == 12u, "Sqrt test: floor of a non-perfect square");
+}
+
+// ---------------------------------------------------------------------
+// Test 9: SWI 0x0A (ArcTan2) - cardinal directions land on the expected
+// quarter-turn boundaries of the 0x0000-0xFFFF angle format.
+// ---------------------------------------------------------------------
+void TestArcTan2() {
+    gba::Bus bus;
+
+    auto runArcTan2 = [&](gba::s32 x, gba::s32 y) -> gba::u32 {
+        const char* path = "/tmp/gba_hle_atan2_test_rom.bin";
+        std::vector<std::uint8_t> program;
+        PushWord(program, 0xE59F'0004u); // LDR R0, [PC, #4] -> x literal at offset 12
+        PushWord(program, 0xE59F'1004u); // LDR R1, [PC, #4] -> y literal at offset 16
+        PushWord(program, 0xEF0A'0000u); // SWI 0x0A (ArcTan2)
+        PushWord(program, static_cast<std::uint32_t>(x));
+        PushWord(program, static_cast<std::uint32_t>(y));
+        WriteTestRom(path, program);
+        bus.LoadRom(path);
+        gba::Cpu cpu(bus);
+        cpu.Step();
+        cpu.Step();
+        cpu.Step();
+        return cpu.GetRegister(0) & 0xFFFFu;
+    };
+
+    // "East" (+x, 0): angle 0. "North" (0,+y): a quarter turn = 0x4000.
+    Check(runArcTan2(100, 0) == 0x0000u, "ArcTan2 test: +X axis -> angle 0");
+    Check(runArcTan2(0, 100) == 0x4000u, "ArcTan2 test: +Y axis -> angle 0x4000 (quarter turn)");
+    Check(runArcTan2(-100, 0) == 0x8000u, "ArcTan2 test: -X axis -> angle 0x8000 (half turn)");
+    Check(runArcTan2(0, -100) == 0xC000u, "ArcTan2 test: -Y axis -> angle 0xC000 (three-quarter turn)");
+}
+
 } // namespace
 
 int main() {
@@ -349,9 +427,11 @@ int main() {
     TestRlUnComp();
     TestDiff8bitUnFilter();
     TestDiff16bitUnFilter();
+    TestSqrt();
+    TestArcTan2();
 
     if (failures == 0) {
-        std::printf("PASS: HLE Halt, Div, CpuSet, LZ77UnComp, RLUnComp, and Diff8/16bitUnFilter\n");
+        std::printf("PASS: HLE Halt, Div, CpuSet, LZ77UnComp, RLUnComp, Diff8/16bitUnFilter, Sqrt, and ArcTan2\n");
     }
     return failures;
 }

@@ -84,3 +84,9 @@ add_executable(gba_tests_apu
 )
 target_link_libraries(gba_tests_apu PRIVATE gba_core)
 add_test(NAME apu_test COMMAND gba_tests_apu)
+
+add_executable(gba_tests_cycle_timing
+    test_cpu_cycle_timing.cpp
+)
+target_link_libraries(gba_tests_cycle_timing PRIVATE gba_core)
+add_test(NAME cycle_timing_test COMMAND gba_tests_cycle_timing)
