@@ -66,7 +66,7 @@ int main() {
         bus.Write16(gba::mem::kPaletteBase + 0x200u + 5u * 2u, 0x7C00u); // blue
 
         bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, static_cast<gba::u16>((1u << 12) | (1u << 6)));
-        ppu.RenderFrame();
+        for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
         CheckPixel(ppu, 0, 0, ExpectedRgba(0x7C00u), "OBJ mosaic: source column is blue");
         CheckPixel(ppu, 3, 0, ExpectedRgba(0x7C00u),
@@ -115,7 +115,7 @@ int main() {
         const gba::u16 dispcnt = static_cast<gba::u16>((1u << 8) | (1u << 12) | (1u << 6) | (1u << 15));
         bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, dispcnt);
 
-        ppu.RenderFrame();
+        for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
         CheckPixel(ppu, 0, 0, ExpectedRgba(bus.Read16(gba::mem::kPaletteBase)),
                    "OBJ window: outside the OBJ window, BG0 is disabled by WINOUT -> backdrop");
@@ -150,7 +150,7 @@ int main() {
         bus.Write16(gba::mem::kIoBase + gba::io::kBldAlpha, static_cast<gba::u16>(8u | (8u << 8)));
 
         bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, static_cast<gba::u16>((1u << 12) | (1u << 6)));
-        ppu.RenderFrame();
+        for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
         // 50/50 blend of pure blue (0,0,255) and pure red (255,0,0) -> (127,0,127).
         const gba::u32 expected = 0xFF00'0000u | (127u << 16) | (0u << 8) | 127u;
@@ -174,7 +174,7 @@ int main() {
         bus.Write16(gba::mem::kIoBase + gba::io::kBldY, 8u);
 
         bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, 0u);
-        ppu.RenderFrame();
+        for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
         // Red (255,0,0) faded 50% toward white (255,255,255) -> (255,127,127).
         const gba::u32 expected = 0xFF00'0000u | (127u << 16) | (127u << 8) | 255u;

@@ -26,12 +26,16 @@ public:
     // Runs any channel enabled with VBlank start timing. Call once, right
     // as the PPU enters the VBlank period.
     //
-    // TODO: HBlank isn't implemented yet - it needs the PPU to actually be
-    // scanline-driven first (see ppu.h's TODO on Step()), since right now
-    // a whole frame renders in one shot at VBlank. Special timing's other
-    // use (DMA3 video capture) isn't implemented either - only the sound
-    // FIFO case (below) is.
+    // TODO: Special timing's other use (DMA3 video capture) isn't
+    // implemented - only the sound FIFO case (below) is.
     void OnVBlank();
+
+    // Runs any channel enabled with HBlank start timing. Call once per
+    // scanline, right as that scanline's visible/draw portion ends and its
+    // HBlank period begins - for all 228 scanlines, not just the 160
+    // visible ones, since the HBlank signal itself doesn't distinguish
+    // visible from VBlank lines on real hardware.
+    void OnHBlank();
 
     // The one Special-timing case that's implemented: Direct Sound's
     // FIFO_A/FIFO_B ask for a refill once they run low. Apu calls this

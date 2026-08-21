@@ -66,6 +66,17 @@ void Dma::OnVBlank() {
     }
 }
 
+void Dma::OnHBlank() {
+    for (int ch = 0; ch < 4; ++ch) {
+        const u16 control = bus_.Read16(CntHAddress(ch));
+        const bool enabled = (control & (1u << 15)) != 0;
+        const u32 timing = (control >> 12) & 0x3u;
+        if (enabled && timing == 2) {
+            RunChannel(ch);
+        }
+    }
+}
+
 void Dma::OnFifoRequest(u32 fifoAddress) {
     // Only DMA1 and DMA2 support Special timing for sound - GBATEK
     // "Channel A and B - DMA Sound" ("Whenever FIFO becomes half empty
@@ -152,12 +163,27 @@ void Dma::RunChannel(int channel) {
         }
     }
 
-    bus_.Write32(DadAddress(channel), dst);
-    // TODO: destControl==3 ("increment during transfer, reload to the
-    // original address at the start of each repeat") isn't fully modeled -
-    // we advance normally but never reload, since repeat-triggered re-runs
-    // (HBlank/audio-FIFO-style DMA) aren't implemented yet either. Worth
-    // revisiting together once HBlank timing lands.
+    // destControl==3 ("increment during transfer, reload to the original
+    // address at the start of each repeat") is naturally handled by simply
+    // *not* writing the advanced dst back to DADxxx here: the next repeat
+    // trigger (HBlank/VBlank) re-reads DAD fresh at the top of this
+    // function, so leaving the register untouched means it stays at
+    // whatever address the game originally configured, which is exactly
+    // what "reload" means. destControl 0/1/2 do need the write-back, so
+    // this repeat's advanced position is what the next repeat continues
+    // from.
+    if (destControl != 3) {
+        bus_.Write32(DadAddress(channel), dst);
+    }
+    // TODO: source-address persistence across repeat-triggered DMA
+    // (VBlank/HBlank) isn't modeled - src is always re-read fresh from
+    // SADxxx at the top of this function rather than carried forward like
+    // dst is, so a repeating transfer with an incrementing source (e.g. a
+    // per-scanline gradient table) restarts from the same address every
+    // trigger instead of continuing through the table. This is the same
+    // class of bug specialSrc_ fixes for the sound FIFO case (see dma.h) -
+    // fixing it here needs the same kind of empirical verification against
+    // real games rather than a blind port of that fix.
 
     if (!repeat) {
         // Real hardware clears the enable bit itself once a non-repeating

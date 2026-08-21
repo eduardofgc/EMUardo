@@ -75,7 +75,7 @@ int main() {
     // Mode 1, BG2 enabled.
     bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, static_cast<gba::u16>(1u | (1u << 10)));
 
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
     CheckPixel(ppu, 0, 0, ExpectedRgba(0x001Fu), "affine BG identity transform: texel(0,0)");
     CheckPixel(ppu, 2, 0, ExpectedRgba(0x03E0u), "affine BG identity transform: texel(2,0)");
@@ -85,7 +85,7 @@ int main() {
     // Scale: PA=0x200 (2.0) advances the source 2 pixels per screen pixel,
     // so screen pixel (1,0) should now sample source pixel (2,0).
     bus.Write16(gba::mem::kIoBase + gba::io::kBg2Pa, 0x0200u);
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
     CheckPixel(ppu, 1, 0, ExpectedRgba(0x03E0u),
                "affine BG 2x scale: screen pixel(1,0) samples source pixel(2,0)");
 
@@ -96,12 +96,12 @@ int main() {
     const gba::s32 oneMapWidthLeft = -(128 << 8);
     bus.Write32(gba::mem::kIoBase + gba::io::kBg2X, static_cast<gba::u32>(oneMapWidthLeft));
 
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
     CheckPixel(ppu, 0, 0, ExpectedRgba(bus.Read16(gba::mem::kPaletteBase)),
                "affine BG without overflow bit: off-map reference point is transparent");
 
     bus.Write16(gba::mem::kIoBase + gba::io::kBg2Cnt, static_cast<gba::u16>(bg2cnt | (1u << 13)));
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
     CheckPixel(ppu, 0, 0, ExpectedRgba(0x001Fu),
                "affine BG with overflow bit: reference point wraps back onto the same tile");
 
@@ -132,7 +132,7 @@ int main() {
     // Mode 0, OBJ enabled, 1D mapping.
     bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, static_cast<gba::u16>((1u << 12) | (1u << 6)));
 
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
     CheckPixel(ppu, 10, 20, ExpectedRgba(0x7C00u),
                "affine sprite identity transform: texel(0,0) at its screen position");
@@ -145,7 +145,7 @@ int main() {
     // of (0,0) - GBATEK "OBJ Rotation/Scaling".
     const gba::u16 spriteAttr0DoubleSize = static_cast<gba::u16>(spriteAttr0 | (1u << 9));
     bus.Write16(gba::mem::kOamBase + 4u * 8u + 0u, spriteAttr0DoubleSize);
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
     CheckPixel(ppu, 10, 20, ExpectedRgba(bus.Read16(gba::mem::kPaletteBase)),
                "affine sprite double-size: bounding-box corner is transparent (outside texture)");

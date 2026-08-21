@@ -73,7 +73,7 @@ int main() {
     const gba::u16 dispcnt = 0u | (1u << 8) | (1u << 12) | (1u << 6);
     bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, dispcnt);
 
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
     Check(ppu.Framebuffer()[0] == ExpectedRgba(green), "BG0 tile pixel (0,0) is green");
     Check(ppu.Framebuffer()[1] == ExpectedRgba(bus.Read16(gba::mem::kPaletteBase)),
@@ -96,7 +96,7 @@ int main() {
     const gba::u16 blue = 0x7C00u;
     bus.Write16(objPaletteAddr, blue);
 
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
     Check(ppu.Framebuffer()[1] == ExpectedRgba(blue),
           "Sprite pixel shows through a transparent BG pixel at (1,0)");

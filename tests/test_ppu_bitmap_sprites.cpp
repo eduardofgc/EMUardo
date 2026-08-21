@@ -72,7 +72,7 @@ int main() {
         const gba::u16 dispcnt = 3u | (1u << 10) | (1u << 12) | (1u << 6);
         bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, dispcnt);
 
-        ppu.RenderFrame();
+        for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
         CheckPixel(ppu, 0, 0, ExpectedRgba(0x7C00u), "sprite pixel wins over Mode 3 bitmap at (0,0)");
         CheckPixel(ppu, 20, 20, ExpectedRgba(0x001Fu), "Mode 3 bitmap shows through where the sprite doesn't cover it");
@@ -101,7 +101,7 @@ int main() {
         const gba::u16 dispcnt = 4u | (1u << 10) | (1u << 12) | (1u << 6);
         bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, dispcnt);
 
-        ppu.RenderFrame();
+        for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
         CheckPixel(ppu, 0, 0, ExpectedRgba(0x03E0u),
                    "higher-priority (lower number) Mode 4 bitmap wins over a lower-priority sprite");
@@ -117,7 +117,7 @@ int main() {
 
         // Mode 3 but BG2 (bit10) left clear.
         bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, 3u);
-        ppu.RenderFrame();
+        for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
         CheckPixel(ppu, 0, 0, ExpectedRgba(bus.Read16(gba::mem::kPaletteBase)),
                    "Mode 3 bitmap stays hidden when DISPCNT's BG2 enable bit is clear");

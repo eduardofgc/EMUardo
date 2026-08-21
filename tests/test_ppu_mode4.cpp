@@ -29,14 +29,14 @@ int main() {
     // enabled like any other background.
     bus.Write8(gba::mem::kVramBase, 5u);
     bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, 4u | (1u << 10)); // mode 4, BG2 on, frame 0
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
     Check(ppu.Framebuffer()[0] == ExpectedRgba(color), "Mode 4 frame 0 pixel reads palette index correctly");
 
     // Frame 1 (VRAM+0xA000): different pixel value, and DISPCNT bit4 flips to it
     bus.Write16(gba::mem::kPaletteBase + 9u * 2u, 0x7C00u); // index 9 -> pure blue
     bus.Write8(gba::mem::kVramBase + 0xA000u, 9u);
     bus.Write16(gba::mem::kIoBase + gba::io::kDispcnt, 4u | (1u << 10) | (1u << 4)); // mode 4, BG2 on, frame 1
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
     Check(ppu.Framebuffer()[0] == ExpectedRgba(0x7C00u), "Mode 4 frame select (bit4) switches to the second VRAM buffer");
 
     if (failures == 0) {

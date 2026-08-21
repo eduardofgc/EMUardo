@@ -45,7 +45,7 @@ int main() {
     const gba::u32 rowOneOffset = static_cast<gba::u32>(gba::Ppu::kScreenWidth) * 2u;
     bus.Write16(gba::mem::kVramBase + rowOneOffset, 0x7FFFu);
 
-    ppu.RenderFrame();
+    for (int l = 0; l < gba::Ppu::kScreenHeight; ++l) ppu.RenderScanline(l);
 
     CheckPixel(ppu, 0, 0, 0xFF0000FFu, "red pixel");
     CheckPixel(ppu, 1, 0, 0xFF00FF00u, "green pixel");
