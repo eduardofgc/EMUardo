@@ -1,7 +1,8 @@
 # EMUardo
 
+
 <p align="center">
-  <img src="assets/logo.png" alt="Logo do EMUardo: um smiley" width="180">
+  <img src="assets/logo.png" alt="Logo" width="180">
 </p>
 
 EMUardo é um emulador open-source de Game Boy Advance escrito em C++20, 
@@ -49,8 +50,8 @@ Funcionando:
 - Emulação da porta GPIO e do chip RTC (relógio de tempo real), para
   cartuchos que usam esse hardware (mais notavelmente os jogos da
   franquia Pokémon)
-- Save states completos (todo o estado da CPU/PPU/Timers/DMA/APU/Bus),
-  além de uma UI que permite seleção de jogos e menu de pausa
+- Save states completos, além de uma UI simples que permite seleção de
+  jogos e menu de pausa
 
 Lacunas conhecidas:
 
@@ -108,7 +109,7 @@ um arquivo `.sav` ao lado da ROM, com o mesmo nome base do arquivo da
 ROM. Save states (o estado completo da máquina, não só a save do
 cartucho) usam um arquivo `.state` do mesmo jeito, um slot por ROM.
 
-Mapeamento do teclado (padrão, totalmente customizável - veja abaixo):
+Mapeamento padrão do teclado:
 
 | Botão do GBA / Ação      | Tecla         |
 |---------------------------|---------------|
@@ -122,10 +123,9 @@ Mapeamento do teclado (padrão, totalmente customizável - veja abaixo):
 | Pausar / menu de pausa     | Esc           |
 | Quick Save State           | F5            |
 | Quick Load State           | F9            |
-| Tela de controles          | Tab (no menu ou na pausa) |
+| Tela de controles          | Tab           |
 
-O menu de pausa (Esc durante o jogo) também tem as opções de Save State,
-Load State e voltar ao menu.
+O menu de pausa também tem as opções de Save State e Load State.
 
 ### Remapeando controles
 
