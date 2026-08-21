@@ -283,15 +283,17 @@ void App::RenderSplash() {
     SDL_RenderClear(renderer_);
 
     constexpr int kIconScale = 2;
+    constexpr int kIconTopMargin = 50;
     const int iconW = kSplashImageWidth * kIconScale;
     const int iconH = kSplashImageHeight * kIconScale;
-    SDL_Rect iconRect{(kWindowWidth - iconW) / 2, kWindowHeight / 2 - iconH - 30, iconW, iconH};
+    SDL_Rect iconRect{(kWindowWidth - iconW) / 2, kIconTopMargin, iconW, iconH};
     SDL_RenderCopy(renderer_, splashTexture_, nullptr, &iconRect);
 
     const std::string title = "GBARDO";
     constexpr int kTitleScale = 5;
+    constexpr int kTitleGap = 30;
     const int titleWidth = MeasureText(title, kTitleScale);
-    DrawText(renderer_, (kWindowWidth - titleWidth) / 2, kWindowHeight / 2 - 10, title, kTitleScale, kWhite);
+    DrawText(renderer_, (kWindowWidth - titleWidth) / 2, iconRect.y + iconH + kTitleGap, title, kTitleScale, kWhite);
 
     // Blink the hint every half second rather than showing it statically.
     if ((SDL_GetTicks64() / 500) % 2 == 0) {
