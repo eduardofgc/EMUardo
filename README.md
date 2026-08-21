@@ -1,20 +1,23 @@
 # EMUardo
 
 EMUardo é um emulador open-source de Game Boy Advance escrito em C++20, 
-construído do zero: um interpretador ARM7TDMI, uma PPU cobrindo os 
+construído do zero. Tem um interpretador ARM7TDMI, uma PPU cobrindo os 
 seis modos de background além de sprites, emulação de save de cartucho 
 (SRAM, Flash, EEPROM) e uma implementação de GPIO/RTC para cartuchos 
 que usam esse hardware. Renderizado e controlado usando SDL2.
 
 Este projeto não inclui nem exige uma BIOS real da Nintendo. O
-despacho de interrupções e as poucas chamadas de BIOS (`SWI`) das quais
-os jogos realmente dependem são implementados nativamente em C++ usando
-HLE (High Level Emulation) em vez de rodar o firmware proprietário padrão.
+despacho de interrupções e as poucas chamadas de BIOS das quais os jogos 
+realmente dependem são implementados nativamente em C++ usando HLE 
+(High Level Emulation) em vez de rodar o firmware proprietário padrão.
 
-Você é responsável por fazer o dump dos seus próprios cartuchos obtidos
-legalmente. Nenhuma ROM está incluída nesse repositório.
+Você é responsável por fazer o dump dos seus próprios cartuchos de GBA 
+obtidos legalmente. Nenhuma ROM está incluída nesse repositório.
 
 ## Status
+
+Ainda estou trabalhando nesse projeto! Aqui está uma visão geral do que
+funciona e do que ainda não funciona.
 
 Funcionando:
 
@@ -40,30 +43,30 @@ Funcionando:
   (512B/8K), detectados automaticamente a partir da ROM e persistidos em
   um arquivo `.sav` ao lado dela
 - Emulação da porta GPIO e do chip RTC (relógio de tempo real), para
-  cartuchos que usam esse hardware (mais notavelmente a família Pokemon
-  Ruby/Sapphire/Emerald)
+  cartuchos que usam esse hardware (mais notavelmente os jogos da
+  franquia Pokémon)
 - Save states completos (todo o estado da CPU/PPU/Timers/DMA/APU/Bus),
-  além de uma interface com tela de splash, seleção de jogos e menu de
-  pausa
+  além de uma UI que permite seleção de jogos e menu de pausa
 
 Lacunas conhecidas:
 
-- Algumas chamadas SWI menos comuns não estão implementadas
-  (descompressão Huffman, BgAffineSet, chamadas relacionadas a som) -
-  jogos que dependem especificamente delas mostrarão gráficos
+- Algumas chamadas SWI menos comuns não estão implementadas, como
+  descompressão Huffman, BgAffineSet e chamadas relacionadas a som.
+  Jogos que dependem especificamente delas mostrarão gráficos
   quebrados/ausentes ou travarão nesse ponto
 - O limite de hardware real de sprites por scanline não é modelado (uma
   linha incomumente carregada de sprites renderiza completa em vez de
   cortar/degradar como no hardware real)
 - A compatibilidade varia por jogo. Títulos mais simples/antigos têm
   mais chance de rodar corretamente do que títulos tecnicamente
-  ambiciosos (Pokemon Emerald, por exemplo, ainda tem problemas
+  ambiciosos (Pokémon Emerald, por exemplo, ainda tem problemas
   significativos de renderização gráfica)
+- Ainda não há suporte para mapeamento de controles, mas planejo
+  implementar essa funcionalidade logo logo!
 
 ## Compilando
 
-Requer um compilador C++20, CMake 3.20+ e SDL2 (headers de
-desenvolvimento).
+Requer um compilador C++20, CMake 3.20+ e SDL2.
 
 ```
 cmake -S . -B build
@@ -90,9 +93,9 @@ Outras opções do CMake:
 
 Sem argumentos, abre a tela de splash e depois a tela de seleção de
 jogos, que lista qualquer arquivo `.gba` encontrado (recursivamente) na
-pasta `roms/` ao lado de onde o comando foi executado - crie essa pasta
-e coloque suas ROMs lá. Passar um caminho de ROM diretamente pula essa
-tela e começa a jogar de imediato:
+pasta `roms/` ao lado de onde o comando foi executado. Crie essa pasta
+e coloque os dumps das suas ROMs lá. Você também pode passar um caminho de 
+ROM diretamente para pular essa tela e começa a jogar de imediato:
 
 ```
 ./build/bin/gba_emulator caminho/para/rom.gba
@@ -115,11 +118,12 @@ Mapeamento do teclado:
 | L                          | A             |
 | R                          | S             |
 | Pausar / menu de pausa     | Esc           |
-| Save state rápido          | F5            |
-| Load state rápido          | F9            |
+| Quick Save State           | F5            |
+| Quick Load State           | F9            |
 
-O menu de pausa (Esc durante o jogo) também tem as opções Save State /
-Load State / Voltar ao Menu, além de Resume.
+O menu de pausa (Esc durante o jogo) também tem as opções de Save State,
+Load State e voltar ao menu. Suporte para controles customizados ainda vai
+vir!
 
 ## Testes
 
