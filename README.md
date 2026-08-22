@@ -29,7 +29,8 @@ Funcionando:
 - Interpretador ARM7TDMI: conjuntos de instruções ARM e Thumb completos
 - HLE BIOS: trampolim de despacho de interrupções, além das chamadas SWI
   das quais a maioria dos jogos depende (Halt, IntrWait/VBlankIntrWait,
-  Div/DivArm, CpuSet/CpuFastSet, descompressão LZ77)
+  Div/DivArm, CpuSet/CpuFastSet, descompressão LZ77/Huffman/RL,
+  Obj/BgAffineSet)
 - PPU: os seis modos de background (Modos 0-2 tiled, incluindo
   rotação/escala afim; Modos 3-5 bitmap), sprites OBJ regulares e afins,
   janelas (Win0/Win1/OBJ window), mosaico e efeitos especiais de cor
@@ -55,10 +56,8 @@ Funcionando:
 
 Lacunas conhecidas:
 
-- Algumas chamadas SWI menos comuns não estão implementadas, como
-  descompressão Huffman, BgAffineSet e chamadas relacionadas a som.
-  Jogos que dependem especificamente delas mostrarão gráficos
-  quebrados/ausentes ou travarão nesse ponto
+- Chamadas SWI relacionadas a som não estão implementadas. Jogos que
+  dependem especificamente delas travarão nesse ponto
 - O limite de hardware real de sprites por scanline não é modelado (uma
   linha incomumente carregada de sprites renderiza completa em vez de
   cortar/degradar como no hardware real)

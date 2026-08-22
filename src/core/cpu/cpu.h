@@ -199,14 +199,10 @@ private:
     // TODO: only the SWI numbers games rely on most heavily for not
     // hanging (Halt/IntrWait), that are simple to implement natively
     // (Div, CpuSet), that graphics decompression depends on (LZ77, RL,
-    // the Diff8/16bitUnFilter delta filters), or basic math (Sqrt,
-    // ArcTan/ArcTan2) are covered. Notably NOT implemented: Huffman
-    // decompression and BgAffineSet - both have enough fiddly byte-layout
-    // /fixed-point-format detail that getting it wrong from memory risks
-    // silently producing corrupted output rather than the obviously-blank
-    // result an unimplemented call gives today, so they're left until
-    // there's a real sample (or the precise spec) to verify against,
-    // rather than shipped as an unverified guess.
+    // Huffman, the Diff8/16bitUnFilter delta filters), that affine-matrix
+    // setup depends on (Obj/BgAffineSet), or basic math (Sqrt,
+    // ArcTan/ArcTan2) are covered. Notably NOT implemented: sound-related
+    // calls.
     bool TryHleSwi(u32 number);
     void HleRegisterRamReset();
     void HleHalt();
@@ -220,9 +216,11 @@ private:
     void HleCpuSet();
     void HleCpuFastSet();
     void HleLz77UnComp();
+    void HleHuffUnComp();
     void HleRlUnComp();
     void HleDiff8bitUnFilter();
     void HleDiff16bitUnFilter();
+    void HleBgAffineSet();
     void HleObjAffineSet();
 
     // True between a Halt/IntrWait-family SWI and the next enabled
