@@ -200,9 +200,11 @@ private:
     // hanging (Halt/IntrWait), that are simple to implement natively
     // (Div, CpuSet), that graphics decompression depends on (LZ77, RL,
     // Huffman, the Diff8/16bitUnFilter delta filters), that affine-matrix
-    // setup depends on (Obj/BgAffineSet), or basic math (Sqrt,
-    // ArcTan/ArcTan2) are covered. Notably NOT implemented: sound-related
-    // calls.
+    // setup depends on (Obj/BgAffineSet), basic math (Sqrt,
+    // ArcTan/ArcTan2), or a single register ramp (SoundBias) are covered.
+    // Notably NOT implemented: the rest of the "Sound Driver" family
+    // (SoundDriverInit/Mode/Main/VSync and friends) - see HleSoundBias's
+    // sibling comment in the default case of TryHleSwi's switch for why.
     bool TryHleSwi(u32 number);
     void HleRegisterRamReset();
     void HleHalt();
@@ -222,6 +224,7 @@ private:
     void HleDiff16bitUnFilter();
     void HleBgAffineSet();
     void HleObjAffineSet();
+    void HleSoundBias();
 
     // True between a Halt/IntrWait-family SWI and the next enabled
     // interrupt. Per GBATEK, Halt exit only requires (IE & IF) != 0 - it

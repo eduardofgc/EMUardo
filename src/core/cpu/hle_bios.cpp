@@ -31,9 +31,19 @@ bool Cpu::TryHleSwi(u32 number) {
         case 0x16: HleDiff8bitUnFilter(); return true; // Diff8bitUnFilterWRAM
         case 0x17: HleDiff8bitUnFilter(); return true; // Diff8bitUnFilterVRAM
         case 0x18: HleDiff16bitUnFilter(); return true; // Diff16bitUnFilter
+        case 0x19: HleSoundBias();        return true; // SoundBias
         default:
-            // Not HLE'd - sound-related calls and others aren't
-            // implemented. Falls back to Arm/ThumbSoftwareInterrupt's real
+            // Not HLE'd - the rest of the "Sound Driver" family
+            // (SoundDriverInit/Mode/Main/VSync and friends, SWI 0x1A-0x25)
+            // are BIOS-resident entry points into Nintendo's undocumented
+            // "Sappy"/MP2k software synth (multi-channel PCM mixing,
+            // envelopes, reverb, an internal work-area struct GBATEK
+            // itself only partially reverse-engineers) - reimplementing
+            // those from memory with no test ROM that actually calls them
+            // would be pure guesswork with no way to verify correctness,
+            // unlike SoundBias's single well-specified register ramp
+            // above. Left unimplemented until a real sample surfaces.
+            // Falls back to Arm/ThumbSoftwareInterrupt's real
             // EnterException(Supervisor, 0x08) path, which currently has
             // no real BIOS code to run there either - the call will
             // effectively do nothing useful.
@@ -570,6 +580,20 @@ void Cpu::HleBgAffineSet() {
         bus_.Write32(entryDst + 8u, static_cast<u32>(startX));
         bus_.Write32(entryDst + 12u, static_cast<u32>(startY));
     }
+}
+
+void Cpu::HleSoundBias() {
+    // SoundBias (SWI 0x19) - GBATEK "SWI 19h". On real hardware this
+    // gradually steps SOUNDBIAS (0x04000088, bits 1-9) up or down toward
+    // its target, one small increment at a time with a delay between
+    // steps, purely to avoid an audible pop in the analog output when
+    // sound is powered on/off. Our digital mixer never reads SOUNDBIAS
+    // for anything - there's no DAC to pop - so jumping straight to the
+    // final value produces the same end state (and the same value any
+    // caller would read back afterward) without needing to model the
+    // ramp's timing.
+    const u32 biasLevel = GetRegister(0);
+    bus_.Write16(mem::kIoBase + io::kSoundBias, biasLevel != 0 ? 0x0200u : 0x0000u);
 }
 
 } // namespace gba

@@ -30,7 +30,7 @@ Funcionando:
 - HLE BIOS: trampolim de despacho de interrupções, além das chamadas SWI
   das quais a maioria dos jogos depende (Halt, IntrWait/VBlankIntrWait,
   Div/DivArm, CpuSet/CpuFastSet, descompressão LZ77/Huffman/RL,
-  Obj/BgAffineSet)
+  Obj/BgAffineSet, SoundBias)
 - PPU: os seis modos de background (Modos 0-2 tiled, incluindo
   rotação/escala afim; Modos 3-5 bitmap), sprites OBJ regulares e afins,
   janelas (Win0/Win1/OBJ window), mosaico e efeitos especiais de cor
@@ -56,8 +56,13 @@ Funcionando:
 
 Lacunas conhecidas:
 
-- Chamadas SWI relacionadas a som não estão implementadas. Jogos que
-  dependem especificamente delas travarão nesse ponto
+- A família "Sound Driver" da BIOS (SoundDriverInit/Mode/Main/VSync e
+  afins - o sintetizador de software "Sappy"/MP2k da Nintendo, não
+  documentado oficialmente) não está implementada. Nenhum dos jogos
+  testados até agora chama essas funções (eles parecem usar mixers de
+  áudio próprios, embutidos na ROM), então isso não é um problema
+  conhecido na prática - só está listado aqui porque reimplementar esse
+  sintetizador sem uma ROM real que dependa dele seria pura suposição
 - O limite de hardware real de sprites por scanline não é modelado (uma
   linha incomumente carregada de sprites renderiza completa em vez de
   cortar/degradar como no hardware real)
