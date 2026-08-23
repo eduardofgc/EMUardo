@@ -95,6 +95,8 @@ Outras opções do CMake:
 
 ## Executando
 
+### Linux:
+
 ```
 ./build/bin/gba_emulator
 ```
@@ -108,6 +110,10 @@ ROM diretamente para pular essa tela e começa a jogar de imediato:
 ```
 ./build/bin/gba_emulator caminho/para/rom.gba
 ```
+
+### Windows:
+
+Extraia `EMUardo-Windows.zip` e abra o executável.
 
 Os dados de save (se o cartucho usar SRAM/Flash/EEPROM) são escritos em
 um arquivo `.sav` ao lado da ROM, com o mesmo nome base do arquivo da
