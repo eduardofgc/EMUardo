@@ -5,14 +5,14 @@
   <img src="assets/logo.png" alt="Logo" width="180">
 </p>
 
-EMUardo é um emulador open-source de Game Boy Advance escrito em C++20, 
+EMUardo é um emulador open-source de Game Boy Advance escrito em C++20 e 
 construído do zero. Tem um interpretador ARM7TDMI, uma PPU cobrindo os 
 seis modos de background além de sprites, emulação de save de cartucho 
-(SRAM, Flash, EEPROM) e uma implementação de GPIO/RTC para cartuchos 
-que usam esse hardware. Renderizado e controlado usando SDL2.
+e uma implementação de GPIO/RTC para jogos que usam esse hardware. 
+Renderizado e controlado usando SDL2.
 
-Este projeto não inclui nem exige uma BIOS real da Nintendo. O
-despacho de interrupções e as poucas chamadas de BIOS das quais os jogos 
+Este projeto não inclui uma BIOS real da Nintendo. O despacho de 
+interrupções e as poucas chamadas de BIOS das quais os jogos 
 realmente dependem são implementados nativamente em C++ usando HLE 
 (High Level Emulation) em vez de rodar o firmware proprietário padrão.
 
@@ -60,16 +60,16 @@ Funcionando:
 Lacunas conhecidas:
 
 - A família "Sound Driver" da BIOS (SoundDriverInit/Mode/Main/VSync e
-  afins - o sintetizador de software "Sappy"/MP2k da Nintendo, não
-  documentado oficialmente) não está implementada. Nenhum dos jogos
-  testados até agora chama essas funções (eles parecem usar mixers de
-  áudio próprios, embutidos na ROM), então isso não é um problema
-  conhecido na prática - só está listado aqui porque reimplementar esse
-  sintetizador sem uma ROM real que dependa dele seria pura suposição
+  afins, que compõem o sintetizador de software "Sappy"/MP2k da Nintendo,
+  não está implementada. Nenhum dos jogos testados até agora chama essas
+  funções (eles parecem usar mixers de áudio próprios, embutidos na ROM),
+  então isso não é um problema conhecido na prática. Só está listado aqui
+  porque reimplementar esse sintetizador sem uma ROM real que dependa dele
+  seria pura suposição
 - A compatibilidade varia por jogo. Títulos mais simples/antigos têm
   mais chance de rodar corretamente do que títulos tecnicamente
-  ambiciosos (Pokémon Emerald, por exemplo, ainda tem problemas
-  significativos de renderização gráfica)
+  ambiciosos (Pokémon Emerald, por exemplo, ainda parece ter problemas
+  de renderização gráfica)
 
 ## Compilando
 
@@ -148,21 +148,31 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-Os testes ligam diretamente com a biblioteca `gba_core` (o mesmo código
-que o emulador real executa) e constroem o estado de CPU/Bus/PPU
-diretamente, em vez de depender de arquivos de ROM de teste. Veja os
-arquivos em `tests/` para a convenção usada.
+Os testes ligam diretamente com a biblioteca `gba_core`  e constroem o 
+estado de CPU/Bus/PPU diretamente, em vez de depender de arquivos de ROM
+de teste. Veja os arquivos em `tests/` para a convenção usada.
 
-## Estrutura do projeto
+## Considerações Finais
 
-```
-src/core/cpu/      Interpretador ARM7TDMI (decoders ARM + Thumb), HLE BIOS, timing de ciclo
-src/core/memory/   Bus (mapa de memória central), emulação de save, GPIO/RTC
-src/core/io/       Timers, DMA
-src/core/ppu/      Picture Processing Unit (renderização de background/sprites)
-src/core/apu/      Direct Sound (canais PCM alimentados por DMA)
-src/core/          Emulator (dono e condutor da máquina inteira), save states, tipos compartilhados
-src/frontend/      Janela SDL2, splash/menu/pausa, seleção de ROM, save states em arquivo, remapeamento de controles
-src/main.cpp       Ponto de entrada (só constrói e roda a App de src/frontend/)
-tests/             Testes unitários via CTest contra a gba_core
-```
+Esse foi meu segundo projeto de renderização gráfica usando SDL2, e foi
+minha primeira vez usando agentes para me ajudar numa tarefa tão monumental.
+Foi legal demais fazer isso nas férias, me ajudou a ter uma noção de como
+essas ferramentas que estive usando pra por tanto tempo na minha vida funcionam 
+por trás das cortinas. 
+
+A maior pedra no meu sapato com certeza foi fazer os jogos da última geração
+de títulos do GBA funcionarem direito. Muito tempo do desenvolvimento é
+dedicado a voltar atrás e adaptar código já existente para fazer debugging,
+e eu diria que esse é o melhor caso de uso de LLM's na programação. Seria
+absurdamente repetitivo de outro jeito. Meu cobaia foi o Pokémon Emerald,
+e no fim eu diria que consegui fazer ele rodar relativamente bem (o único bug
+que eu conheço que não consegui resolver foi o da poça de água da title screen
+não renderizando, que também aconteceu no mGBA).
+
+Talvez algum dia eu volte a trabalhar nesse projeto, já que tem um bocado de
+coisa pra implementar que ainda quero fazer (como suporte para controles, além
+do que foi listado em "Lacunas conhecidas"). De qualquer jeito, desenvolver tudo
+isso e ver funcionar foi demais, e recomendo para qualquer pessoa interessada em 
+saber como os emuladores conseguem fazer o que fazem.
+
+Contribuições são mais do que bem vindas! Obrigado pelo seu tempo!
