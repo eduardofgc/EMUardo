@@ -630,7 +630,98 @@ void Ppu::RenderSprites(int line) {
     static constexpr int kWidthTable[4][4]  = {{8, 16, 32, 64}, {16, 32, 32, 64}, {8, 8, 16, 32}, {0, 0, 0, 0}};
     static constexpr int kHeightTable[4][4] = {{8, 16, 32, 64}, {8, 8, 16, 32}, {16, 32, 32, 64}, {0, 0, 0, 0}};
 
+    // Real hardware can only spend a limited number of cycles per
+    // scanline fetching sprite tile data (GBATEK "Time Available for OBJ
+    // Rendering"); once that budget runs out partway through OAM, the
+    // remaining OBJs simply aren't drawn on this line at all - a heavily
+    // sprite-crowded scanline can visibly drop some of them while
+    // adjacent, less-crowded lines render every sprite fully. The budget
+    // is spent scanning OAM index 0 upward, but the compositing loop
+    // below runs in reverse (127 down to 0) for its own priority
+    // tie-breaking reasons (see its "already-drawn, higher-priority
+    // sprite wins" comment), so eligibility has to be worked out here as
+    // a separate forward pass first.
+    //
+    // Cost model verified against mGBA's GBAVideoRendererCleanOAM
+    // (src/gba/renderers/common.c) and
+    // GBAVideoSoftwareRendererPreprocessSpriteLayer (renderers/
+    // video-software.c), which is more precise than GBATEK's own
+    // simplified "n*1" / "10+n*2" description: every non-disabled OAM
+    // slot costs 2 cycles just to be scanned - charged as 2 * (this
+    // index - the last index actually charged), so disabled slots in
+    // between cost nothing themselves but still widen the next real
+    // slot's charge - and a slot that overlaps this scanline both
+    // vertically and horizontally additionally costs (width-2) cycles
+    // for a normal sprite or (8 + boundWidth*2) for an affine one,
+    // reduced further when the sprite starts partially off the left
+    // screen edge (full 1:1 credit per off-screen column for affine,
+    // only half credit - via an arithmetic shift, not a division - for
+    // normal sprites).
+    bool budgetAllows[128];
+    {
+        const bool hblankFree = (dispcnt & (1u << 5)) != 0;
+        int budget = hblankFree ? 954 : 1210;
+        int lastChargedIndex = 0;
+        for (int i = 0; i < 128; ++i) {
+            budgetAllows[i] = false;
+            const u32 addr = mem::kOamBase + static_cast<u32>(i) * 8u;
+            const u16 a0 = bus_.Read16(addr);
+            const u16 a1 = bus_.Read16(addr + 2u);
+
+            const bool aff = (a0 & (1u << 8)) != 0;
+            const bool doubleSz = (a0 & (1u << 9)) != 0;
+            if (!aff && doubleSz) {
+                continue; // disabled - never scanned, never costs anything
+            }
+
+            budget -= 2 * (i - lastChargedIndex);
+            lastChargedIndex = i;
+            if (budget <= 0) {
+                break; // out of time for the rest of this scanline's OAM scan
+            }
+
+            const u32 shp = (a0 >> 14) & 0x3u;
+            const u32 sz = (a1 >> 14) & 0x3u;
+            if (shp == 3) {
+                continue; // prohibited shape value
+            }
+            int w = kWidthTable[shp][sz];
+            int h = kHeightTable[shp][sz];
+            if (aff && doubleSz) {
+                w *= 2;
+                h *= 2;
+            }
+
+            int sY = static_cast<int>(a0 & 0xFFu);
+            if (sY >= kScreenHeight) sY -= 256;
+            if (line < sY || line >= sY + h) {
+                continue; // doesn't reach this scanline - no width cost
+            }
+
+            int sX = static_cast<int>(a1 & 0x1FFu);
+            if (sX >= kScreenWidth) sX -= 512;
+            if (sX >= kScreenWidth || sX + w <= 0) {
+                continue; // no visible column on any scanline
+            }
+
+            int cost;
+            if (aff) {
+                cost = 8 + w * 2;
+                if (sX < 0) cost += sX;
+            } else {
+                cost = w - 2;
+                if (sX < 0) cost += sX >> 1;
+            }
+
+            budget -= cost;
+            budgetAllows[i] = true;
+        }
+    }
+
     for (int oamIndex = 127; oamIndex >= 0; --oamIndex) {
+        if (!budgetAllows[oamIndex]) {
+            continue;
+        }
         const u32 entryAddr = mem::kOamBase + static_cast<u32>(oamIndex) * 8u;
         const u16 attr0 = bus_.Read16(entryAddr);
         const u16 attr1 = bus_.Read16(entryAddr + 2u);

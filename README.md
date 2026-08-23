@@ -33,8 +33,11 @@ Funcionando:
   Obj/BgAffineSet, SoundBias)
 - PPU: os seis modos de background (Modos 0-2 tiled, incluindo
   rotação/escala afim; Modos 3-5 bitmap), sprites OBJ regulares e afins,
-  janelas (Win0/Win1/OBJ window), mosaico e efeitos especiais de cor
-  (alpha blending, fade de brilho)
+  janelas (Win0/Win1/OBJ window), mosaico, efeitos especiais de cor
+  (alpha blending, fade de brilho) e o limite real de hardware de ciclos
+  de renderização de sprites por scanline (uma linha com sprites
+  demais faz os últimos, em ordem de OAM, simplesmente não aparecerem
+  nessa linha, como no hardware real)
 - Timers, DMA (incluindo timing de HBlank/VBlank real), entrada do
   teclado, controlador de interrupções
 - Timing de instrução real (custos de ciclo S/N/I por tipo de
@@ -63,9 +66,6 @@ Lacunas conhecidas:
   áudio próprios, embutidos na ROM), então isso não é um problema
   conhecido na prática - só está listado aqui porque reimplementar esse
   sintetizador sem uma ROM real que dependa dele seria pura suposição
-- O limite de hardware real de sprites por scanline não é modelado (uma
-  linha incomumente carregada de sprites renderiza completa em vez de
-  cortar/degradar como no hardware real)
 - A compatibilidade varia por jogo. Títulos mais simples/antigos têm
   mais chance de rodar corretamente do que títulos tecnicamente
   ambiciosos (Pokémon Emerald, por exemplo, ainda tem problemas

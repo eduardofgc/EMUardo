@@ -96,3 +96,9 @@ add_executable(gba_tests_save_state
 )
 target_link_libraries(gba_tests_save_state PRIVATE gba_core)
 add_test(NAME save_state_test COMMAND gba_tests_save_state)
+
+add_executable(gba_tests_ppu_sprite_limit
+    test_ppu_sprite_limit.cpp
+)
+target_link_libraries(gba_tests_ppu_sprite_limit PRIVATE gba_core)
+add_test(NAME ppu_sprite_limit_test COMMAND gba_tests_ppu_sprite_limit)
