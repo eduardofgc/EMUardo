@@ -92,24 +92,6 @@ Outras opções do CMake:
 - `GBA_ENABLE_ASAN` (padrão `OFF`): AddressSanitizer + UBSan, apenas em
   builds Debug
 
-### Gerando um .exe para Windows
-
-O `gba_emulator.exe` é gerado via cross-compilation com MinGW-w64,
-direto do Linux (não precisa de uma máquina Windows). No Fedora:
-
-```
-sudo dnf install mingw64-gcc-c++ mingw64-binutils mingw64-sdl2-compat
-./scripts/package-windows.sh
-```
-
-Isso deixa tudo pronto em `dist-windows/`: `gba_emulator.exe` (com o
-ícone do smiley embutido e sem console junto, só abre a janela do
-jogo), as DLLs que ele precisa em tempo de execução (`SDL2.dll`;
-`SDL3.dll`, que o pacote `sdl2-compat` do Fedora carrega por baixo como
-uma camada de compatibilidade; e `libwinpthread-1.dll`) e uma pasta
-`roms/` vazia. É só zipar essa pasta inteira e mandar pro usuário
-final: ele descompacta, larga os `.gba` dele em `roms/` e clica no
-`.exe`.
 
 ## Executando
 
@@ -171,23 +153,11 @@ Os testes ligam diretamente com a biblioteca `gba_core`  e constroem o
 estado de CPU/Bus/PPU diretamente, em vez de depender de arquivos de ROM
 de teste. Veja os arquivos em `tests/` para a convenção usada.
 
-## Estrutura do projeto
-
-```
-src/core/cpu/      Interpretador ARM7TDMI (decoders ARM + Thumb), HLE BIOS, timing de ciclo
-src/core/memory/   Bus (mapa de memória central), emulação de save, GPIO/RTC
-src/core/io/       Timers, DMA
-src/core/ppu/      Picture Processing Unit (renderização de background/sprites)
-src/core/apu/      Direct Sound (canais PCM alimentados por DMA)
-src/core/          Emulator (dono e condutor da máquina inteira), save states, tipos compartilhados
-src/frontend/      Janela SDL2, splash/menu/pausa, seleção de ROM, save states em arquivo, remapeamento de controles
-src/main.cpp       Ponto de entrada (só constrói e roda a App de src/frontend/)
-tests/             Testes unitários via CTest contra a gba_core
-cmake/             Toolchain file para cross-compilation (Windows via MinGW-w64)
-scripts/           Scripts de build/empacotamento (gerar o .exe do Windows)
-```
-
 ## Considerações Finais
+
+<p align="center">
+  <img src="assets/emerald_title.gif" alt="Tela de título do Pokémon Emerald rodando no EMUardo" width="480">
+</p>
 
 Esse foi meu segundo projeto de renderização gráfica usando SDL2, e foi
 minha primeira vez usando agentes para me ajudar numa tarefa tão monumental.
@@ -202,11 +172,7 @@ e eu diria que esse é o melhor caso de uso de LLM's na programação. Seria
 absurdamente repetitivo de outro jeito. Meu cobaia foi o Pokémon Emerald,
 e no fim eu diria que consegui fazer ele rodar relativamente bem (o único bug
 que eu conheço que não consegui resolver foi o da poça de água da title screen
-não renderizando, que também aconteceu no mGBA):
-
-<p align="center">
-  <img src="assets/emerald_title.gif" alt="Tela de título do Pokémon Emerald rodando no EMUardo" width="480">
-</p>
+não renderizando, que também aconteceu no mGBA).
 
 Talvez algum dia eu volte a trabalhar nesse projeto, já que tem um bocado de
 coisa pra implementar que ainda quero fazer (como suporte para controles, além
