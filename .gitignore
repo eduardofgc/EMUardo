@@ -1,4 +1,6 @@
 build/
+build-windows/
+dist-windows/
 cmake-build-*/
 compile_commands.json
 .cache/

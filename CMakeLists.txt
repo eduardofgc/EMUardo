@@ -90,7 +90,7 @@ endif()
 # states) lives in src/frontend/, kept separate from gba_core so the test
 # harness never has to link SDL2 just to exercise the emulator core.
 # ---------------------------------------------------------------------------
-add_executable(gba_emulator
+set(GBA_EMULATOR_SOURCES
     src/main.cpp
     src/frontend/app.cpp
     src/frontend/app_paths.cpp
@@ -100,12 +100,40 @@ add_executable(gba_emulator
     src/frontend/splash_image.cpp
 )
 
+if(WIN32)
+    # Embeds assets/icon.ico as the .exe's own icon (see assets/app_icon.rc).
+    list(APPEND GBA_EMULATOR_SOURCES assets/app_icon.rc)
+endif()
+
+# WIN32 (only meaningful when actually targeting Windows) builds a
+# windowed-subsystem executable - without it, a Windows build would pop up
+# a console window alongside the game window every launch.
+add_executable(gba_emulator WIN32 ${GBA_EMULATOR_SOURCES})
+
 target_link_libraries(gba_emulator PRIVATE
     gba_core
     gba_warnings
-    SDL2::SDL2
     SDL2::SDL2main
+    SDL2::SDL2
 )
+
+if(MINGW)
+    # Statically link libgcc/libstdc++ so those two don't have to be
+    # shipped alongside the .exe (SDL2 only ships as a shared lib here -
+    # no static .a beyond the import library - so it can't be folded in
+    # the same way, and neither can winpthread despite the attempt below:
+    # it still shows up as a runtime dependency, likely pulled back in by
+    # libstdc++'s own threading support. See scripts/package-windows.sh
+    # for the full, verified list of DLLs actually needed at runtime -
+    # notably including SDL3.dll, which sdl2-compat's SDL2.dll loads
+    # dynamically and so never shows up as a link-time dependency here.
+    # `-Wl,-Bstatic`/`-Wl,-Bdynamic` scope the static preference to just
+    # winpthread rather than applying a bare `-static` to everything
+    # (which would also make the linker look for a static SDL2 and fail
+    # to find one).
+    target_link_options(gba_emulator PRIVATE
+        -static-libgcc -static-libstdc++ -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic)
+endif()
 
 # ---------------------------------------------------------------------------
 # Tests

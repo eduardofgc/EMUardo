@@ -1,0 +1,7 @@
+// Embeds icon.ico as the .exe's icon (shown in Explorer and the taskbar
+// before the app is even running) - Windows resource script, compiled by
+// windres, only used for the MinGW/Windows build. Resource ID 1 matches
+// what SDL2 falls back to for the window's own icon if SDL_SetWindowIcon
+// is never called, though app.cpp calls it explicitly anyway so the
+// title-bar/Alt-Tab icon doesn't depend on that convention.
+1 ICON "icon.ico"

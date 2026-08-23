@@ -73,6 +73,12 @@ bool App::Init() {
         const_cast<unsigned char*>(kSplashImageRgba), kSplashImageWidth, kSplashImageHeight,
         32, kSplashImageWidth * 4,
         0x0000'00FFu, 0x0000'FF00u, 0x00FF'0000u, 0xFF00'0000u);
+    // Sets the OS-level window icon (title bar, taskbar/Alt-Tab preview) -
+    // same smiley bitmap the splash screen itself renders, reused here
+    // rather than relying on Windows' convention of falling back to the
+    // .exe's embedded resource icon when this isn't called, so the icon
+    // is identical and explicit on every platform.
+    SDL_SetWindowIcon(window_, splashSurface);
     splashTexture_ = SDL_CreateTextureFromSurface(renderer_, splashSurface);
     SDL_FreeSurface(splashSurface);
 

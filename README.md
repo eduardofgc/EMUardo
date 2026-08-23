@@ -43,10 +43,10 @@ Funcionando:
 - Timing de instrução real (custos de ciclo S/N/I por tipo de
   instrução, GBATEK), em vez de um custo fixo de 1 ciclo por instrução
 - PPU renderizada scanline por scanline (não um frame inteiro de uma
-  vez), incluindo o acumulador de ponto de referência afim interno -
-  jogos que dependem de efeitos de raster no meio do frame (splits de
-  scroll cronometrados por HBlank, trocas de paleta no meio da tela,
-  etc.) renderizam corretamente
+  vez), incluindo o acumulador de ponto de referência afim interno.
+  Isso faz com que jogos que dependem de efeitos de raster no meio do
+  frame (splits de scroll cronometrados por HBlank, trocas de paleta no
+  meio da tela, etc.) renderizem corretamente
 - Direct Sound (os dois canais de PCM alimentados por DMA) funcionando
 - Emulação de save de cartucho: SRAM, Flash (64K/128K), EEPROM
   (512B/8K), detectados automaticamente a partir da ROM e persistidos em
@@ -60,11 +60,11 @@ Funcionando:
 Lacunas conhecidas:
 
 - A família "Sound Driver" da BIOS (SoundDriverInit/Mode/Main/VSync e
-  afins - o sintetizador de software "Sappy"/MP2k da Nintendo, não
+  afins, o sintetizador de software "Sappy"/MP2k da Nintendo, não
   documentado oficialmente) não está implementada. Nenhum dos jogos
   testados até agora chama essas funções (eles parecem usar mixers de
   áudio próprios, embutidos na ROM), então isso não é um problema
-  conhecido na prática - só está listado aqui porque reimplementar esse
+  conhecido na prática. Está listado aqui só porque reimplementar esse
   sintetizador sem uma ROM real que dependa dele seria pura suposição
 - A compatibilidade varia por jogo. Títulos mais simples/antigos têm
   mais chance de rodar corretamente do que títulos tecnicamente
@@ -91,6 +91,25 @@ Outras opções do CMake:
 - `GBA_BUILD_TESTS` (padrão `ON`): compila a suíte de testes
 - `GBA_ENABLE_ASAN` (padrão `OFF`): AddressSanitizer + UBSan, apenas em
   builds Debug
+
+### Gerando um .exe para Windows
+
+O `gba_emulator.exe` é gerado via cross-compilation com MinGW-w64,
+direto do Linux (não precisa de uma máquina Windows). No Fedora:
+
+```
+sudo dnf install mingw64-gcc-c++ mingw64-binutils mingw64-sdl2-compat
+./scripts/package-windows.sh
+```
+
+Isso deixa tudo pronto em `dist-windows/`: `gba_emulator.exe` (com o
+ícone do smiley embutido e sem console junto, só abre a janela do
+jogo), as DLLs que ele precisa em tempo de execução (`SDL2.dll`;
+`SDL3.dll`, que o pacote `sdl2-compat` do Fedora carrega por baixo como
+uma camada de compatibilidade; e `libwinpthread-1.dll`) e uma pasta
+`roms/` vazia. É só zipar essa pasta inteira e mandar pro usuário
+final: ele descompacta, larga os `.gba` dele em `roms/` e clica no
+`.exe`.
 
 ## Executando
 
@@ -165,4 +184,18 @@ src/core/          Emulator (dono e condutor da máquina inteira), save states, 
 src/frontend/      Janela SDL2, splash/menu/pausa, seleção de ROM, save states em arquivo, remapeamento de controles
 src/main.cpp       Ponto de entrada (só constrói e roda a App de src/frontend/)
 tests/             Testes unitários via CTest contra a gba_core
+cmake/             Toolchain file para cross-compilation (Windows via MinGW-w64)
+scripts/           Scripts de build/empacotamento (gerar o .exe do Windows)
 ```
+
+## Considerações finais
+
+EMUardo começou como um projeto pessoal para aprender mais sobre
+emulação e arquitetura de hardware, e ainda está em desenvolvimento
+ativo. Abaixo, a tela de título do Pokémon Emerald rodando nele:
+
+<p align="center">
+  <img src="assets/emerald_title.gif" alt="Tela de título do Pokémon Emerald rodando no EMUardo" width="480">
+</p>
+
+Contribuições, relatos de bugs e sugestões são bem-vindos!
