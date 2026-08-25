@@ -24,7 +24,7 @@ obtidos legalmente. Nenhuma ROM está incluída nesse repositório.
 Ainda estou trabalhando nesse projeto! Aqui está uma visão geral do que
 funciona e do que ainda não funciona.
 
-Funcionando:
+### Funcionando:
 
 - Interpretador ARM7TDMI: conjuntos de instruções ARM e Thumb completos
 - HLE BIOS: trampolim de despacho de interrupções, além das chamadas SWI
@@ -57,7 +57,7 @@ Funcionando:
 - Save states completos, além de uma UI simples que permite seleção de
   jogos e menu de pausa
 
-Lacunas conhecidas:
+### Lacunas conhecidas:
 
 - A família "Sound Driver" da BIOS (SoundDriverInit/Mode/Main/VSync e
   afins, que compõem o sintetizador de software "Sappy"/MP2k da Nintendo,
@@ -95,6 +95,8 @@ Outras opções do CMake:
 
 ## Executando
 
+### Linux:
+
 ```
 ./build/bin/gba_emulator
 ```
@@ -109,12 +111,16 @@ ROM diretamente para pular essa tela e começa a jogar de imediato:
 ./build/bin/gba_emulator caminho/para/rom.gba
 ```
 
+### Windows:
+
+Extraia `EMUardo-Windows.zip` e abra o executável.
+
 Os dados de save (se o cartucho usar SRAM/Flash/EEPROM) são escritos em
 um arquivo `.sav` ao lado da ROM, com o mesmo nome base do arquivo da
 ROM. Save states (o estado completo da máquina, não só a save do
 cartucho) usam um arquivo `.state` do mesmo jeito, um slot por ROM.
 
-Mapeamento padrão do teclado:
+## Mapeamento padrão do teclado:
 
 | Botão do GBA / Ação      | Tecla         |
 |---------------------------|---------------|
@@ -155,9 +161,11 @@ de teste. Veja os arquivos em `tests/` para a convenção usada.
 
 ## Considerações Finais
 
+
 <p align="center">
   <img src="assets/emerald_title.gif" alt="Tela de título do Pokémon Emerald rodando no EMUardo" width="480">
 </p>
+
 
 Esse foi meu segundo projeto de renderização gráfica usando SDL2, e foi
 minha primeira vez usando agentes para me ajudar numa tarefa tão monumental.
