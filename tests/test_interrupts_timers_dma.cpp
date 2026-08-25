@@ -147,15 +147,56 @@ void TestDmaImmediateTransfer() {
           "DMA test: non-repeat transfer cleared its own enable bit");
 }
 
+// ---------------------------------------------------------------------
+// Test 4: DMA0 configured for HBlank-triggered repeat, 1-word-per-trigger,
+// incrementing source and fixed destination. Firing OnHBlank() three times
+// (three separate scanlines' worth of HBlank) should copy three distinct
+// consecutive source words in turn, rather than re-copying the same first
+// word every time - the source-address persistence fix in RunChannel().
+// ---------------------------------------------------------------------
+void TestDmaHBlankRepeatSourcePersistence() {
+    gba::Bus bus;
+    gba::Dma dma(bus);
+
+    const gba::u32 src = gba::mem::kEwramBase + 0x300;
+    const gba::u32 dst = gba::mem::kEwramBase + 0x400;
+    for (gba::u32 i = 0; i < 3; ++i) {
+        bus.Write32(src + i * 4, 0xBEEF'0000u + i);
+    }
+
+    bus.Write32(gba::mem::kIoBase + gba::io::kDma0Sad, src);
+    bus.Write32(gba::mem::kIoBase + gba::io::kDma0Dad, dst);
+    bus.Write16(gba::mem::kIoBase + gba::io::kDma0CntL, 1);
+    // bit15=enable, bit10=32-bit transfer, bit9=repeat, bits13-12=10(HBlank),
+    // bits8-7=00(source increment), bits6-5=10(dest fixed)
+    bus.Write16(gba::mem::kIoBase + gba::io::kDma0CntH,
+                (1u << 15) | (1u << 10) | (1u << 9) | (2u << 12) | (2u << 5));
+
+    dma.OnHBlank();
+    Check(bus.Read32(dst) == 0xBEEF'0000u, "HBlank DMA test: first trigger copies the first source word");
+
+    dma.OnHBlank();
+    Check(bus.Read32(dst) == 0xBEEF'0001u,
+          "HBlank DMA test: second trigger continues from the second source word, not the first again");
+
+    dma.OnHBlank();
+    Check(bus.Read32(dst) == 0xBEEF'0002u,
+          "HBlank DMA test: third trigger continues from the third source word");
+
+    Check(bus.Read32(gba::mem::kIoBase + gba::io::kDma0Sad) == src + 12,
+          "HBlank DMA test: SAD reflects the persisted (advanced) source position");
+}
+
 } // namespace
 
 int main() {
     TestIrqReturnAddress();
     TestTimerOverflow();
     TestDmaImmediateTransfer();
+    TestDmaHBlankRepeatSourcePersistence();
 
     if (failures == 0) {
-        std::printf("PASS: IRQ return address, timer overflow, DMA immediate transfer\n");
+        std::printf("PASS: IRQ return address, timer overflow, DMA immediate transfer, HBlank-repeat DMA source persistence\n");
     }
     return failures;
 }

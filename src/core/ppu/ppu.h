@@ -147,15 +147,13 @@ private:
     // Fills objLayer_/objPriority_/objWindowMask_/objSemiTransparent_ from
     // OAM for this one scanline - all 128 sprites are checked, but only
     // those whose bounding box actually covers this line contribute any
-    // pixels. Processes OAM back-to-front (index 127 down to 0) so that,
-    // per GBATEK, lower OAM index wins ties at equal priority. Honors each
-    // sprite's OBJ Mode (normal / semi-transparent / OBJ-window) and
-    // mosaic flag.
-    //
-    // TODO: real hardware only draws up to 128 sprite dots per scanline
-    // (fewer if any are affine) and drops the rest - not modeled, so an
-    // unusually sprite-heavy line renders fully here instead of the
-    // glitches/missing sprites real hardware would show.
+    // pixels, and only those the per-scanline OBJ rendering cycle budget
+    // (GBATEK "Time Available for OBJ Rendering") hasn't already run out
+    // on by the time OAM scanning reaches them - see this function's own
+    // comment in ppu.cpp for the verified cost model. Processes OAM
+    // back-to-front (index 127 down to 0) so that, per GBATEK, lower OAM
+    // index wins ties at equal priority. Honors each sprite's OBJ Mode
+    // (normal / semi-transparent / OBJ-window) and mosaic flag.
     void RenderSprites(int line);
 
     // Combines up to 4 BG layers (using each BG's configured priority,

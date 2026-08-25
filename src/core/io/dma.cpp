@@ -187,15 +187,27 @@ void Dma::RunChannel(int channel) {
     if (destControl != 3) {
         bus_.Write32(DadAddress(channel), dst);
     }
-    // TODO: source-address persistence across repeat-triggered DMA
-    // (VBlank/HBlank) isn't modeled - src is always re-read fresh from
-    // SADxxx at the top of this function rather than carried forward like
-    // dst is, so a repeating transfer with an incrementing source (e.g. a
-    // per-scanline gradient table) restarts from the same address every
-    // trigger instead of continuing through the table. This is the same
-    // class of bug specialSrc_ fixes for the sound FIFO case (see dma.h) -
-    // fixing it here needs the same kind of empirical verification against
-    // real games rather than a blind port of that fix.
+    // Source has no "reload" control value (3 is prohibited, treated as
+    // fixed above) to preserve, so - mirroring how dst just above persists
+    // across repeat triggers by writing its advanced position straight
+    // back to DADxxx - src's advanced position is always written back to
+    // SADxxx here too. Without this, a repeating transfer with an
+    // incrementing source (e.g. a per-scanline gradient table fed by
+    // HBlank-triggered DMA) would restart from the same address every
+    // trigger instead of continuing through the table, since the next
+    // RunChannel() call re-reads SADxxx fresh at the top of this function.
+    // This does mean SADxxx no longer reads back the exact value the game
+    // wrote once a transfer has run, same tradeoff already accepted for
+    // DADxxx above - real hardware keeps both registers frozen at the
+    // original addresses (GBATEK), which only matters for a game that
+    // peeks at its own DMA registers rather than just letting the
+    // hardware move data. specialSrc_ exists precisely because that's
+    // known to happen for the sound FIFO case (see its declaration) but
+    // there's no such known case for general-purpose repeat DMA, so this
+    // simpler always-write-back approach - consistent with dst's existing
+    // handling - is used here instead of a second shadow-variable
+    // mechanism.
+    bus_.Write32(SadAddress(channel), src);
 
     if (!repeat) {
         // Real hardware clears the enable bit itself once a non-repeating
