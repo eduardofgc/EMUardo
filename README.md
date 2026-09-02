@@ -168,7 +168,7 @@ de teste. Veja os arquivos em `tests/` para a convenção usada.
 
 
 Esse foi meu segundo projeto de renderização gráfica usando SDL2, e foi
-minha primeira vez usando agentes para me ajudar numa tarefa tão monumental.
+minha primeira vez usando agentes para me ajudar numa tarefa grande assim.
 Foi legal demais fazer isso nas férias, me ajudou a ter uma noção de como
 essas ferramentas que estive usando pra por tanto tempo na minha vida funcionam 
 por trás das cortinas. 
